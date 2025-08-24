@@ -147,12 +147,64 @@ class Program
 
     static int RunPack(PackOptions opts)
     {
+        void SetupOutputModFolder(string input, string output, string? soleId)
+        {
+            if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(output);
+
+            foreach (var srcPath in Directory.EnumerateFileSystemEntries(input, "*", SearchOption.AllDirectories))
+            {
+                var relPath = Path.GetRelativePath(input, srcPath);
+                var targetPath = Path.Combine(output, relPath);
+
+                // Skip everything under ModCode except dll folder
+                if (relPath.StartsWith("ModCode" + Path.DirectorySeparatorChar))
+                {
+                    var parts = relPath.Split(Path.DirectorySeparatorChar);
+                    if (parts.Length < 2 || parts[1] != "dll")
+                        continue; // skip non-dll contents
+                }
+
+                if (Directory.Exists(srcPath))
+                {
+                    Directory.CreateDirectory(targetPath);
+                }
+                else
+                {
+                    Console.WriteLine($"Copying: '{srcPath}' -> '{targetPath}'");
+                    File.Copy(srcPath, targetPath, true);
+                }
+
+            }
+
+            // Copy compiled ModMain dll
+            if (soleId != null)
+            {
+                Console.WriteLine($"soleID: {soleId}");
+                var modMainDll = Path.Combine(input, "ModCode", "ModMain", "bin", "Release", $"MOD_{soleId}.dll");
+                if (File.Exists(modMainDll))
+                {
+                    var dllOutDir = Path.Combine(output, "ModCode", "dll");
+                    var outModMainDll = Path.Combine(dllOutDir, Path.GetFileName(modMainDll));
+
+                    Console.WriteLine($"Copying: '{modMainDll}' -> '{outModMainDll}'");
+                    Directory.CreateDirectory(dllOutDir);
+                    File.Copy(modMainDll, outModMainDll, true);
+                }
+            }
+        }
+
         var root = opts.Folder;
-        // var outRoot = opts.OutputFolder ?? root;
+        var outRoot = opts.OutputFolder ?? root;
         var projPath = Path.Combine(root, "ModProject.cache");
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
         bool excelEncrypt = false;
+        string? soleId = null;
         byte[] exportEncrypted;
         if (File.Exists(projPath))
         {
@@ -160,6 +212,8 @@ class Program
 
             if (projectNode.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
                 excelEncrypt = b;
+
+            soleId = projectNode["soleID"]?.GetValue<string>();
 
             var exportRoot = new JsonObject
             {
@@ -176,7 +230,6 @@ class Program
                 })
             );
             exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
-            File.WriteAllBytes(exportPath, exportEncrypted);
         }
         else if (File.Exists(exportPath))
         {
@@ -184,17 +237,25 @@ class Program
             var exportNode = JsonNode.Parse(Encoding.UTF8.GetString(exportDecrypted))!.AsObject();
             if (exportNode["projectData"] is JsonObject proj)
             {
+                soleId = proj["soleID"]?.GetValue<string>();
                 if (proj.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
                     excelEncrypt = b;
             }
-
             exportEncrypted = EncryptTool.EncryptMult(exportDecrypted, EncryptTool.modEncryPassword);
-            File.WriteAllBytes(exportPath, exportEncrypted);
         }
         else
         {
             throw new FileNotFoundException("Missing required ModProject.cache in root folder.", projPath);
         }
+
+        Console.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
+        SetupOutputModFolder(root, outRoot, soleId);
+        root = outRoot; // Operating in output folder now
+        projPath = Path.Combine(root, "ModProject.cache");
+        exportPath = Path.Combine(root, "ModExportData.cache");
+
+        Console.WriteLine("Writing 'ModData.cache'");
+        File.WriteAllBytes(exportPath, exportEncrypted);
 
         var modDataPath = Path.Combine(root, "ModData.cache");
         if (File.Exists(projPath)) File.Delete(projPath);
@@ -444,8 +505,8 @@ class PackOptions
     [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
     public string Folder { get; set; } = "";
 
-    // [Option('o', "output", Required = false, HelpText = "Output folder. Defaults to input folder.")]
-    // public string? OutputFolder { get; set; }
+    [Option('o', "output", Required = false, HelpText = "Output folder. Defaults to input folder.")]
+    public string? OutputFolder { get; set; }
 }
 
 [Verb("unpack", HelpText = "Unpack mod files (in-place), so that the mod can be edited in the in-game mod editor.")]
