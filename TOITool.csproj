@@ -7,29 +7,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <GamePath Condition="'$(GamePath)' == ''">$(GAME_PATH_ENV)</GamePath>
-  </PropertyGroup>
-  <Target Name="CheckGamePath" BeforeTargets="BeforeBuild">
-    <Error Condition="'$(GamePath)' == ''"
-      Text="'GamePath' property is not set. Create a 'TOITool.csproj.user' with the game path." />
-  </Target>
-
-  <ItemGroup>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>$(GamePath)\MelonLoader\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnhollowerBaseLib">
-      <HintPath>$(GamePath)\MelonLoader\UnhollowerBaseLib.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GamePath)\MelonLoader\UnityEngine.CoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
