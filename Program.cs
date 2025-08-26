@@ -261,7 +261,7 @@ class Program
         projPath = Path.Combine(root, "ModProject.cache");
         exportPath = Path.Combine(root, "ModExportData.cache");
 
-        Console.WriteLine("Writing 'ModData.cache'");
+        Console.WriteLine("Writing 'ModExportData.cache'");
         File.WriteAllBytes(exportPath, exportEncrypted);
 
         var modDataPath = Path.Combine(root, "ModData.cache");
