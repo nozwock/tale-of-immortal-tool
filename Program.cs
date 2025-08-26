@@ -218,7 +218,7 @@ class Program
             var exportRoot = new JsonObject
             {
                 ["projectData"] = projectNode,
-                ["items"] = new JsonArray(),
+                ["items"] = new JsonObject(),
                 ["modNamespace"] = null
             };
 
