@@ -395,7 +395,7 @@ class Program
 
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(Path.Combine(root, "ModAssets"));
-        Directory.CreateDirectory(Path.Combine(root, "ModCode", "dll"));
+        Directory.CreateDirectory(Path.Combine(root, "ModCode", "ModMain"));
         Directory.CreateDirectory(Path.Combine(root, "ModExcel"));
 
 
