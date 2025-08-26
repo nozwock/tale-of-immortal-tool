@@ -207,7 +207,7 @@ class Program
 
         bool excelEncrypt = false;
         string? soleId = null;
-        byte[] exportEncrypted;
+        JsonObject exportRoot;
         if (File.Exists(projPath))
         {
             var projectNode = JsonNode.Parse(File.ReadAllText(projPath, Encoding.UTF8))!.AsObject();
@@ -217,38 +217,23 @@ class Program
 
             soleId = projectNode["soleID"]?.GetValue<string>();
 
-            var exportRoot = new JsonObject
+            exportRoot = new JsonObject
             {
                 ["projectData"] = projectNode,
                 ["items"] = new JsonObject(),
                 ["modNamespace"] = null
             };
-
-            if (soleId != null) {
-                // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
-                exportRoot["modNamespace"] = $"MOD_{soleId}";
-            }
-
-            var exportJsonBytes = Encoding.UTF8.GetBytes(
-                exportRoot.ToJsonString(new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                })
-            );
-            exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
         }
         else if (File.Exists(exportPath))
         {
             var exportDecrypted = EncryptTool.DecryptMult(File.ReadAllBytes(exportPath), EncryptTool.modEncryPassword);
-            var exportNode = JsonNode.Parse(Encoding.UTF8.GetString(exportDecrypted))!.AsObject();
-            if (exportNode["projectData"] is JsonObject proj)
+            exportRoot = JsonNode.Parse(Encoding.UTF8.GetString(exportDecrypted))!.AsObject();
+            if (exportRoot["projectData"] is JsonObject projectNode)
             {
-                soleId = proj["soleID"]?.GetValue<string>();
-                if (proj.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
+                soleId = projectNode["soleID"]?.GetValue<string>();
+                if (projectNode.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
                     excelEncrypt = b;
             }
-            exportEncrypted = EncryptTool.EncryptMult(exportDecrypted, EncryptTool.modEncryPassword);
         }
         else
         {
@@ -262,6 +247,20 @@ class Program
         exportPath = Path.Combine(root, "ModExportData.cache");
 
         Console.WriteLine("Writing 'ModExportData.cache'");
+
+        if (soleId != null)
+        {
+            // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
+            exportRoot["modNamespace"] = $"MOD_{soleId}";
+        }
+        var exportJsonBytes = Encoding.UTF8.GetBytes(
+            exportRoot.ToJsonString(new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            })
+        );
+        var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
         File.WriteAllBytes(exportPath, exportEncrypted);
 
         var modDataPath = Path.Combine(root, "ModData.cache");
