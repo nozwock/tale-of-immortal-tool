@@ -224,6 +224,11 @@ class Program
                 ["modNamespace"] = null
             };
 
+            if (soleId != null) {
+                // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
+                exportRoot["modNamespace"] = $"MOD_{soleId}";
+            }
+
             var exportJsonBytes = Encoding.UTF8.GetBytes(
                 exportRoot.ToJsonString(new JsonSerializerOptions
                 {
