@@ -149,6 +149,22 @@ class Program
     {
         void SetupOutputModFolder(string input, string output, string? soleId)
         {
+            // Copy compiled ModMain dll
+            if (soleId != null)
+            {
+                Console.WriteLine($"soleID: {soleId}");
+                var modMainDll = Path.Combine(input, "ModCode", "ModMain", "bin", "Release", $"MOD_{soleId}.dll");
+                if (File.Exists(modMainDll))
+                {
+                    var dllOutDir = Path.Combine(output, "ModCode", "dll");
+                    var outModMainDll = Path.Combine(dllOutDir, Path.GetFileName(modMainDll));
+
+                    Console.WriteLine($"Copying: '{modMainDll}' -> '{outModMainDll}'");
+                    Directory.CreateDirectory(dllOutDir);
+                    File.Copy(modMainDll, outModMainDll, true);
+                }
+            }
+
             if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
             {
                 return;
@@ -178,24 +194,8 @@ class Program
                     Console.WriteLine($"Copying: '{srcPath}' -> '{targetPath}'");
                     File.Copy(srcPath, targetPath, true);
                 }
-
             }
 
-            // Copy compiled ModMain dll
-            if (soleId != null)
-            {
-                Console.WriteLine($"soleID: {soleId}");
-                var modMainDll = Path.Combine(input, "ModCode", "ModMain", "bin", "Release", $"MOD_{soleId}.dll");
-                if (File.Exists(modMainDll))
-                {
-                    var dllOutDir = Path.Combine(output, "ModCode", "dll");
-                    var outModMainDll = Path.Combine(dllOutDir, Path.GetFileName(modMainDll));
-
-                    Console.WriteLine($"Copying: '{modMainDll}' -> '{outModMainDll}'");
-                    Directory.CreateDirectory(dllOutDir);
-                    File.Copy(modMainDll, outModMainDll, true);
-                }
-            }
         }
 
         var root = opts.Folder;
