@@ -2,12 +2,13 @@
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using CommandLine;
-using CommandLine.Text;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+using CommandLine;
+using CommandLine.Text;
 
 class Program
 {
@@ -17,7 +18,7 @@ class Program
         {
             config.HelpWriter = null;
         });
-        var parserResult = parser.ParseArguments<NewModProjectOptions, EncryptOptions, DecryptOptions, RestoreExcelOptions, PackOptions, UnpackOptions>(args);
+        var parserResult = parser.ParseArguments<NewModProjectOptions, EncryptOptions, DecryptOptions, RestoreExcelOptions, PackOptions, UnpackOptions, EditOptions>(args);
 
         return parserResult
             .MapResult(
@@ -27,6 +28,7 @@ class Program
                 (PackOptions opts) => RunPack(opts),
                 (UnpackOptions opts) => RunUnpack(opts),
                 (NewModProjectOptions opts) => RunNewModProject(opts),
+                (EditOptions opts) => RunEdit(opts),
                 errs =>
                 {
                     var helpText = HelpText.AutoBuild(parserResult, h =>
@@ -465,7 +467,108 @@ class Program
         Console.WriteLine($"New mod template created at '{root}'");
         return 0;
     }
+    static int RunEdit(EditOptions opts)
+    {
+        static string GetEditor()
+        {
+            string? editor = Environment.GetEnvironmentVariable("VISUAL")
+                          ?? Environment.GetEnvironmentVariable("EDITOR");
 
+            if (!string.IsNullOrEmpty(editor))
+                return editor;
+
+            // OS defaults
+            if (OperatingSystem.IsWindows())
+                return "notepad";
+            if (OperatingSystem.IsMacOS())
+                return "open"; // macOS: open -t file
+            return "vi"; // Linux default
+        }
+
+        if (!File.Exists(opts.InputFile))
+        {
+            Console.Error.WriteLine("File not found: " + opts.InputFile);
+            return 1;
+        }
+
+        byte[] data = File.ReadAllBytes(opts.InputFile);
+        if (!EncryptTool.LooksEncrypted(data))
+        {
+            Console.Error.WriteLine("File is already decrypted: " + opts.InputFile);
+            return 1;
+        }
+
+        byte[] decryptedData = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
+        string decryptedText = Encoding.UTF8.GetString(decryptedData);
+
+        string formattedJson;
+        try
+        {
+            var doc = JsonDocument.Parse(decryptedText);
+            formattedJson = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("File is not valid JSON: " + ex.Message);
+            return 1;
+        }
+
+        string tempFile = Path.GetTempFileName();
+        File.WriteAllText(tempFile, formattedJson);
+
+        try
+        {
+            string editor = GetEditor();
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = editor,
+                UseShellExecute = false
+            };
+            if (OperatingSystem.IsMacOS())
+            {
+                psi.ArgumentList.Add("-t");
+            }
+            psi.ArgumentList.Add(tempFile);
+
+            using var proc = Process.Start(psi)!;
+            proc.WaitForExit();
+
+            var modifiedData = File.ReadAllBytes(tempFile);
+            string modifiedText = Encoding.UTF8.GetString(modifiedData);
+
+            if (formattedJson == modifiedText)
+            {
+                Console.Error.WriteLine("Nothing to update.");
+                return 0;
+            }
+
+            // Validate JSON
+            try
+            {
+                JsonDocument.Parse(modifiedText);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Invalid JSON after edit: " + ex.Message);
+                return 1;
+            }
+
+            // Encrypt and overwrite
+            File.WriteAllBytes(opts.InputFile, EncryptTool.EncryptMult(modifiedData, EncryptTool.modEncryPassword));
+
+            Console.WriteLine($"Updated file '{opts.InputFile}'");
+            return 0;
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
 
     public static IEnumerable<string> GetFilesByPattern(string path,
                        string rePattern = "",
@@ -521,4 +624,11 @@ public class NewModProjectOptions
 {
     [Value(0, MetaName = "name", Required = true, HelpText = "Name of the mod (and folder).")]
     public string Name { get; set; } = default!;
+}
+
+[Verb("edit", HelpText = "Edit encrypted file in default text editor (Currently restricted to json files). Useful for editing 'ModExportData.cache'.")]
+class EditOptions
+{
+    [Value(0, Required = true, HelpText = "Path to the file.")]
+    public string InputFile { get; set; } = null!;
 }
