@@ -267,33 +267,48 @@ class Program
         if (File.Exists(projPath)) File.Delete(projPath);
         if (File.Exists(modDataPath)) File.Delete(modDataPath);
 
-        if (excelEncrypt)
+        var modExcelDir = Path.Combine(root, "ModExcel");
+        if (Directory.Exists(modExcelDir))
         {
-            foreach (var file in GetFilesByPattern(root, @"\.json$"))
+            foreach (var file in GetFilesByPattern(modExcelDir, @"\.json$"))
             {
-
-                Console.WriteLine($"Encrypting '{file}'");
                 var data = File.ReadAllBytes(file);
-                var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
-                File.WriteAllBytes(file, enc);
+                if (excelEncrypt && EncryptTool.LooksEncrypted(data) || !excelEncrypt && !EncryptTool.LooksEncrypted(data))
+                {
+                    continue;
+                }
+
+                byte[] bytes;
+                if (excelEncrypt)
+                {
+                    Console.WriteLine($"Encrypting '{file}'");
+                    bytes = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
+                }
+                else
+                {
+                    Console.WriteLine($"Decrypting '{file}'");
+                    bytes = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
+                }
+                File.WriteAllBytes(file, bytes);
             }
         }
 
-        foreach (var file in GetFilesByPattern(opts.Folder, @"(\.png|\.json)$"))
+        foreach (var file in GetFilesByPattern(root, @"(\.png)$"))
         {
-            // Skip ModAssets/
+            // Skip ModAssets/ and ModCode/
             var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar))
+            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar) | relPath.StartsWith("ModCode" + Path.DirectorySeparatorChar))
                 continue;
 
-            // Encrypt .json only when excelEncrypt == true, otherwise leave as-is
-            if (Path.GetExtension(file).Equals(".png", StringComparison.OrdinalIgnoreCase) || (Path.GetExtension(file).Equals(".json", StringComparison.OrdinalIgnoreCase) && excelEncrypt))
+            var data = File.ReadAllBytes(file);
+            if (EncryptTool.LooksEncrypted(data))
             {
-                Console.WriteLine($"Encrypting '{file}'");
-                var data = File.ReadAllBytes(file);
-                var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
-                File.WriteAllBytes(file, enc);
+                continue;
             }
+
+            Console.WriteLine($"Encrypting '{file}'");
+            var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
+            File.WriteAllBytes(file, enc);
         }
 
         Console.WriteLine("Pack completed.");
