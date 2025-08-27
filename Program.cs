@@ -116,7 +116,7 @@ class Program
         foreach (var file in GetFilesByPattern(root, @"\.png$"))
         {
             var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar))
+            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar) | relPath.StartsWith("ModCode" + Path.DirectorySeparatorChar))
                 continue;
 
             data = File.ReadAllBytes(file);
@@ -129,11 +129,10 @@ class Program
             File.WriteAllBytes(file, EncryptTool.EncryptMult(File.ReadAllBytes(file), EncryptTool.modEncryPassword));
         }
 
+        // Decrypt any encrypted json file, even if outside ModExcel
         foreach (var file in GetFilesByPattern(root, @"\.json$"))
         {
             var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar))
-                continue;
 
             data = File.ReadAllBytes(file);
             if (!EncryptTool.LooksEncrypted(data))
@@ -317,6 +316,7 @@ class Program
 
     static int RunUnpack(UnpackOptions opts)
     {
+        // TODO: Add an option for separate output folder
         var root = opts.Folder;
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
@@ -329,6 +329,7 @@ class Program
         if (exportNode["projectData"] is not JsonObject projectData)
             throw new InvalidDataException("ModExportData.cache missing projectData.");
 
+        // Decrypt all the files if encrypted
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
             var data = File.ReadAllBytes(file);
@@ -357,6 +358,7 @@ class Program
 
         // Build ModData.cache (default)
         // TODO: Needs to be updated, like how it's done in NewModProject()
+        // Need to be properly constructed
         var modData = new JsonObject();
         var soleId = projectData["soleID"]?.GetValue<string>();
         if (soleId != null)
