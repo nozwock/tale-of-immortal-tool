@@ -46,38 +46,76 @@ class Program
 
     static int RunEncrypt(EncryptOptions opts)
     {
-        foreach (var file in GetFilesByPattern(opts.Folder, @"(\.cache|\.png|\.json)$"))
+        if (Directory.Exists(opts.Path))
         {
-            var relPath = Path.GetRelativePath(opts.Folder, file);
-            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar))
-                continue;
+            foreach (var file in Directory.EnumerateFiles(opts.Path, "*", SearchOption.AllDirectories))
+            {
+                var data = File.ReadAllBytes(file);
+                if (EncryptTool.LooksEncrypted(data))
+                {
+                    continue;
+                }
 
+                Console.WriteLine($"Encrypting '{file}'");
+                var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
+                File.WriteAllBytes(file, encrypted);
+            }
+        }
+        else if (File.Exists(opts.Path))
+        {
+            var file = opts.Path;
             var data = File.ReadAllBytes(file);
             if (EncryptTool.LooksEncrypted(data))
             {
-                continue;
+                return 0;
             }
 
             Console.WriteLine($"Encrypting '{file}'");
             var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, encrypted);
         }
+        else
+        {
+            Console.WriteLine($"Neither a file nor directory: '{opts.Path}'");
+            return 1;
+        }
         return 0;
     }
 
     static int RunDecrypt(DecryptOptions opts)
     {
-        foreach (var file in Directory.EnumerateFiles(opts.Folder, "*", SearchOption.AllDirectories))
+        if (Directory.Exists(opts.Path))
         {
+            foreach (var file in Directory.EnumerateFiles(opts.Path, "*", SearchOption.AllDirectories))
+            {
+                var data = File.ReadAllBytes(file);
+                if (!EncryptTool.LooksEncrypted(data))
+                {
+                    continue;
+                }
+
+                Console.WriteLine($"Decrypting '{file}'");
+                var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
+                File.WriteAllBytes(file, decrypted);
+            }
+        }
+        else if (File.Exists(opts.Path))
+        {
+            var file = opts.Path;
             var data = File.ReadAllBytes(file);
             if (!EncryptTool.LooksEncrypted(data))
             {
-                continue;
+                return 0;
             }
 
             Console.WriteLine($"Decrypting '{file}'");
             var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, decrypted);
+        }
+        else
+        {
+            Console.WriteLine($"Neither a file nor directory: '{opts.Path}'");
+            return 1;
         }
         return 0;
     }
@@ -602,18 +640,18 @@ class Program
     }
 }
 
-[Verb("encrypt", HelpText = "Encrypt all mod files in a folder (in-place).")]
+[Verb("encrypt", HelpText = "Encrypt a single file or all files in a folder (in-place).")]
 class EncryptOptions
 {
-    [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
-    public string Folder { get; set; } = "";
+    [Value(0, MetaName = "path", Required = true, HelpText = "File or folder containing files.")]
+    public string Path { get; set; } = "";
 }
 
-[Verb("decrypt", HelpText = "Decrypt all files in a folder (in-place).")]
+[Verb("decrypt", HelpText = "Decrypt a single file or all files in a folder (in-place).")]
 class DecryptOptions
 {
-    [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
-    public string Folder { get; set; } = "";
+    [Value(0, MetaName = "path", Required = true, HelpText = "File or folder containing files.")]
+    public string Path { get; set; } = "";
 }
 
 [Verb("restore-excel", HelpText = "Decrypt json mod files (in-place), and for ModExportData.cache modify excelEncrypt=false.")]
