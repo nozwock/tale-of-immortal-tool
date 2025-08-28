@@ -94,7 +94,7 @@ class Program
                     continue;
                 }
 
-                Console.WriteLine($"Decrypting '{file}'");
+                Console.Error.WriteLine($"Decrypting '{file}'");
                 var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
                 File.WriteAllBytes(file, decrypted);
             }
@@ -108,13 +108,20 @@ class Program
                 return 0;
             }
 
-            Console.WriteLine($"Decrypting '{file}'");
+            Console.Error.WriteLine($"Decrypting '{file}'");
             var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
-            File.WriteAllBytes(file, decrypted);
+            if (opts.Inplace)
+            {
+                File.WriteAllBytes(file, decrypted);
+            }
+            else
+            {
+                Console.OpenStandardOutput().Write(decrypted);
+            }
         }
         else
         {
-            Console.WriteLine($"Neither a file nor directory: '{opts.Path}'");
+            Console.Error.WriteLine($"Neither a file nor directory: '{opts.Path}'");
             return 1;
         }
         return 0;
@@ -652,6 +659,9 @@ class DecryptOptions
 {
     [Value(0, MetaName = "path", Required = true, HelpText = "File or folder containing files.")]
     public string Path { get; set; } = "";
+
+    [Option('i', "in-place", Required = false, HelpText = "Decrypt file in place. Output to stdout otherwise.")]
+    public bool Inplace { get; set; } = false;
 }
 
 [Verb("restore-excel", HelpText = "Decrypt json mod files (in-place), and for ModExportData.cache modify excelEncrypt=false.")]
