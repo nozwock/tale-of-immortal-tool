@@ -195,20 +195,40 @@ class Program
     {
         void SetupOutputModFolder(string input, string output, string? modNamespace)
         {
-            // Copy compiled ModMain dll
+            // Copy compiled ModCode Release artifacts
             if (modNamespace != null)
             {
+                var releaseDir = Path.Combine(input, "ModCode", "ModMain", "bin", "Release");
+                var modMainDll = Path.Combine(releaseDir, $"{modNamespace}.dll");
+
                 Console.WriteLine($"modNamespace: {modNamespace}");
-                var modMainDll = Path.Combine(input, "ModCode", "ModMain", "bin", "Release", $"{modNamespace}.dll");
                 if (File.Exists(modMainDll))
                 {
-                    var dllOutDir = Path.Combine(output, "ModCode", "dll");
-                    var outModMainDll = Path.Combine(dllOutDir, Path.GetFileName(modMainDll));
+                    // Copy over all files from `ModCode/ModMain/bin/Release` if main dll exists
+                    // This is the behaviour of the Game's in-game mod tooling as well.
 
-                    Console.WriteLine($"Copying: '{modMainDll}' -> '{outModMainDll}'");
+                    var dllOutDir = Path.Combine(output, "ModCode", "dll");
                     Directory.CreateDirectory(dllOutDir);
-                    File.Copy(modMainDll, outModMainDll, true);
+
+                    foreach (var file in Directory.EnumerateFiles(releaseDir))
+                    {
+                        var ext = Path.GetExtension(file);
+                        if (string.Equals(ext, ".pdb", StringComparison.OrdinalIgnoreCase))
+                            continue; // skip debug symbols
+
+                        var dest = Path.Combine(dllOutDir, Path.GetFileName(file));
+                        Console.Error.WriteLine($"Copying: '{file}' -> '{dest}'");
+                        File.Copy(file, dest, overwrite: true);
+                    }
                 }
+                else
+                {
+                    Console.Error.WriteLine($"Couldn't find '{modNamespace}.dll', skipping ModCode");
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine("modNamespace not found, skipping ModCode");
             }
 
             if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
@@ -672,7 +692,7 @@ class RestoreExcelOptions
     public string Folder { get; set; } = "";
 }
 
-[Verb("pack", HelpText = "Pack mod files (in-place), so that the mod can be loaded in-game.")]
+[Verb("pack", HelpText = "Pack mod files, so that the mod can be loaded in-game.\nDlls and related assets from 'ModCode/ModMain/bin/Release/' gets copied over to 'ModCode/dll/'.")]
 class PackOptions
 {
     [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
