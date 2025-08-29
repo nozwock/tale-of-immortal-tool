@@ -193,13 +193,13 @@ class Program
 
     static int RunPack(PackOptions opts)
     {
-        void SetupOutputModFolder(string input, string output, string? soleId)
+        void SetupOutputModFolder(string input, string output, string? modNamespace)
         {
             // Copy compiled ModMain dll
-            if (soleId != null)
+            if (modNamespace != null)
             {
-                Console.WriteLine($"soleID: {soleId}");
-                var modMainDll = Path.Combine(input, "ModCode", "ModMain", "bin", "Release", $"MOD_{soleId}.dll");
+                Console.WriteLine($"modNamespace: {modNamespace}");
+                var modMainDll = Path.Combine(input, "ModCode", "ModMain", "bin", "Release", $"{modNamespace}.dll");
                 if (File.Exists(modMainDll))
                 {
                     var dllOutDir = Path.Combine(output, "ModCode", "dll");
@@ -285,7 +285,8 @@ class Program
         }
 
         Console.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
-        SetupOutputModFolder(root, outRoot, soleId);
+        var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>() ?? (soleId != null ? $"MOD_{soleId}" : null);
+        SetupOutputModFolder(root, outRoot, modNamespace);
         root = outRoot; // Operating in output folder now
         projPath = Path.Combine(root, "ModProject.cache");
         exportPath = Path.Combine(root, "ModExportData.cache");
