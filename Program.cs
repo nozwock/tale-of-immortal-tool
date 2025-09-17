@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using CommandLine;
 using CommandLine.Text;
+using ICSharpCode.SharpZipLib.GZip;
 
 class Program
 {
@@ -18,12 +19,24 @@ class Program
         {
             config.HelpWriter = null;
         });
-        var parserResult = parser.ParseArguments<NewModProjectOptions, EncryptOptions, DecryptOptions, RestoreExcelOptions, PackOptions, UnpackOptions, EditOptions>(args);
+        var parserResult = parser.ParseArguments<
+            NewModProjectOptions,
+            EncryptOptions,
+            DecryptOptions,
+            RestoreExcelOptions,
+            PackOptions,
+            UnpackOptions,
+            EditOptions,
+            SaveUnpackOptions,
+            SavePackOptions
+        >(args);
 
         return parserResult
             .MapResult(
                 (EncryptOptions opts) => RunEncrypt(opts),
                 (DecryptOptions opts) => RunDecrypt(opts),
+                (SaveUnpackOptions opts) => RunSaveUnpack(opts),
+                (SavePackOptions opts) => RunSavePack(opts),
                 (RestoreExcelOptions opts) => RunRestoreExcel(opts),
                 (PackOptions opts) => RunPack(opts),
                 (UnpackOptions opts) => RunUnpack(opts),
@@ -124,6 +137,185 @@ class Program
             Console.Error.WriteLine($"Neither a file nor directory: '{opts.Path}'");
             return 1;
         }
+        return 0;
+    }
+
+    const string SAVE_UNPACK_META_FILENAME = "unpack_metadata.json";
+
+    // For PC, on Android it's gzipped BinaryFormatter serialized objects instead
+    static int RunSaveUnpack(SaveUnpackOptions opts)
+    {
+        var metadata = new SaveUnpackMetadata();
+
+        byte[] Decompress(byte[] input)
+        {
+            using var stream = new MemoryStream(input);
+            using var gzip = new GZipInputStream(stream);
+            using var output = new MemoryStream();
+            gzip.CopyTo(output);
+            return output.ToArray();
+        }
+
+        void ProcessFile(string filePath)
+        {
+            var rootPath = Path.GetDirectoryName(filePath)!;
+            var filename = Path.GetFileName(filePath);
+            var outputBasename = Path.GetFileNameWithoutExtension(filename);
+            var ext = Path.GetExtension(filename);
+
+            var meta = new SaveUnpackMetadata.FileMeta();
+
+            var bytes = File.ReadAllBytes(filePath);
+            if (EncryptTool.LooksEncrypted(bytes))
+            {
+                meta.IsFileEncrypted = true;
+                try
+                {
+                    var decryptedName = EncryptTool.DecryptDES(outputBasename, EncryptTool.cacheEncryPassword);
+                    meta.IsOriginalNameEncrypted = true;
+                    if (!opts.KeepNames)
+                    {
+                        meta.IsNameDecrypted = true;
+                        outputBasename = decryptedName;
+                    }
+                }
+                catch (FormatException) // Invalid base64, etc
+                { }
+
+                var decrypted = EncryptTool.DecryptMult(bytes, EncryptTool.cacheEncryPassword);
+                var decompressed = Decompress(decrypted);
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(decompressed);
+                    decompressed = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    }
+                    ));
+                }
+                catch { }
+
+                // In-place
+                var outFile = Path.Combine(rootPath, outputBasename + ext);
+                Console.Error.WriteLine($"`{filePath}` >> `{outFile}`");
+
+                File.Delete(filePath);
+                File.WriteAllBytes(outFile, decompressed);
+
+                metadata.Files[Path.GetRelativePath(opts.Path, outFile)] = meta;
+            }
+            else
+            {
+                Console.Error.WriteLine($"`{filePath}` isn't encrypted, skipped.");
+                metadata.Files[Path.GetRelativePath(opts.Path, filePath)] = meta;
+            }
+        }
+
+        if (Directory.Exists(opts.Path))
+        {
+            foreach (var file in Directory.EnumerateFiles(opts.Path, "*", SearchOption.AllDirectories))
+            {
+                ProcessFile(file);
+            }
+
+            var metaPath = Path.Combine(opts.Path, SAVE_UNPACK_META_FILENAME);
+            File.WriteAllText(metaPath, JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        else if (File.Exists(opts.Path))
+        {
+            ProcessFile(opts.Path);
+        }
+        else
+        {
+            Console.Error.WriteLine($"Neither a file nor directory: `{opts.Path}`");
+            return 1;
+        }
+
+        return 0;
+    }
+
+    static int RunSavePack(SavePackOptions opts)
+    {
+        byte[] Compress(byte[] input)
+        {
+            using var output = new MemoryStream();
+            using (var gzip = new GZipOutputStream(output))
+            {
+                gzip.IsStreamOwner = false;
+                gzip.Write(input, 0, input.Length);
+            }
+            return output.ToArray();
+        }
+
+        void ProcessFile(string filePath, SaveUnpackMetadata.FileMeta? meta = null)
+        {
+            if (!File.Exists(filePath) || meta?.IsFileEncrypted == false)
+            {
+                return;
+            }
+
+            var rootPath = Path.GetDirectoryName(filePath)!;
+            var outputBasename = Path.GetFileNameWithoutExtension(filePath);
+            var ext = Path.GetExtension(filePath);
+
+            var bytes = File.ReadAllBytes(filePath);
+            // Minify json before packing
+            try
+            {
+                using var doc = JsonDocument.Parse(bytes);
+                bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(doc.RootElement));
+            }
+            catch { }
+
+            var compressed = Compress(bytes);
+            var encrypted = EncryptTool.EncryptMult(compressed, EncryptTool.cacheEncryPassword);
+
+            if (!opts.KeepNames && (meta == null || (meta.IsOriginalNameEncrypted && meta.IsNameDecrypted)))
+            {
+                outputBasename = EncryptTool.EncryptDES(outputBasename, EncryptTool.cacheEncryPassword);
+            }
+
+            var outFile = Path.Combine(rootPath, outputBasename + ext);
+            Console.Error.WriteLine($"`{filePath}` >> `{outFile}`");
+
+            File.Delete(filePath);
+            File.WriteAllBytes(outFile, encrypted);
+        }
+
+        if (Directory.Exists(opts.Path))
+        {
+            var metaPath = Path.Combine(opts.Path, SAVE_UNPACK_META_FILENAME);
+            if (!File.Exists(metaPath))
+            {
+                Console.Error.WriteLine("Metadata file not found. Run save-unpack first.");
+                return 1;
+            }
+            var metadata = JsonSerializer.Deserialize<SaveUnpackMetadata>(File.ReadAllText(metaPath))!;
+
+            foreach (var kv in metadata.Files)
+            {
+                var relPath = kv.Key;
+                var meta = kv.Value;
+                var filePath = Path.Combine(opts.Path, relPath);
+
+                ProcessFile(filePath, meta);
+            }
+
+            Console.Error.WriteLine("Pack complete, removing metadata file...");
+            File.Delete(metaPath);
+        }
+        else if (File.Exists(opts.Path))
+        {
+            ProcessFile(opts.Path);
+        }
+        else
+        {
+            Console.Error.WriteLine($"Neither a file nor directory: `{opts.Path}`");
+            return 1;
+        }
+
         return 0;
     }
 
@@ -668,6 +860,19 @@ class Program
     }
 }
 
+public class SaveUnpackMetadata
+{
+    public Dictionary<string, FileMeta> Files { get; set; } = new();
+
+    public class FileMeta
+    {
+        public bool IsFileEncrypted { get; set; }
+        public bool IsOriginalNameEncrypted { get; set; }
+        public bool IsNameDecrypted { get; set; }
+    }
+}
+
+
 [Verb("encrypt", HelpText = "Encrypt a single file or all files in a folder (in-place).")]
 class EncryptOptions
 {
@@ -721,4 +926,24 @@ class EditOptions
 {
     [Value(0, Required = true, HelpText = "Path to the file.")]
     public string InputFile { get; set; } = null!;
+}
+
+[Verb("save-pack", HelpText = "Compress and encrypt a single save file or all save files in a folder (in-place).")]
+class SavePackOptions
+{
+    [Value(0, MetaName = "path", Required = true, HelpText = "Save file or folder containing save files.")]
+    public string Path { get; set; } = "";
+
+    [Option('k', "keep-names", Required = false, HelpText = "Keep original filenames, do not encrypt them.")]
+    public bool KeepNames { get; set; } = false;
+}
+
+[Verb("save-unpack", HelpText = "Decompress and decrypt a single save file or all save files in a folder (in-place).")]
+class SaveUnpackOptions
+{
+    [Value(0, MetaName = "path", Required = true, HelpText = "Save file or folder containing save files.")]
+    public string Path { get; set; } = "";
+
+    [Option('k', "keep-names", Required = false, HelpText = "Keep original filenames, do not decrypt them.")]
+    public bool KeepNames { get; set; } = false;
 }
