@@ -436,7 +436,7 @@ class Program
                 var targetPath = Path.Combine(output, relPath);
 
                 // Skip everything under ModCode except dll folder
-                if (relPath.StartsWith("ModCode" + Path.DirectorySeparatorChar))
+                if (relPath.StartsWith("ModCode"))
                 {
                     var parts = relPath.Split(Path.DirectorySeparatorChar);
                     if (parts.Length < 2 || parts[1] != "dll")
@@ -558,7 +558,7 @@ class Program
         {
             // Skip ModAssets/ and ModCode/
             var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar) | relPath.StartsWith("ModCode" + Path.DirectorySeparatorChar))
+            if (relPath.StartsWith("ModAssets") || relPath.StartsWith("ModCode") || relPath.StartsWith("ModExcel"))
                 continue;
 
             var data = File.ReadAllBytes(file);
