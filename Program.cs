@@ -1,12 +1,8 @@
-using System;
-using System.IO;
+using System.Diagnostics;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Diagnostics;
+using System.Text.RegularExpressions;
 using CommandLine;
 using CommandLine.Text;
 using ICSharpCode.SharpZipLib.GZip;
@@ -382,7 +378,7 @@ class Program
 
     static int RunPack(PackOptions opts)
     {
-        void SetupOutputModFolder(string input, string output, string? modNamespace)
+        static void SetupOutputModFolder(string input, string output, string? modNamespace)
         {
             // Copy compiled ModCode Release artifacts
             if (modNamespace != null)
@@ -611,7 +607,7 @@ class Program
                 var filePath = Path.Combine(jsonDir, filename + ".json");
                 Console.Error.WriteLine($"Unpacking ModExportData's {filename} to `{filePath}`");
                 File.WriteAllText(filePath,
-                    data.ToJsonString(jsonPrettySerializerOptions),
+                    data!.ToJsonString(jsonPrettySerializerOptions),
                     Encoding.UTF8
                 );
             }
@@ -639,7 +635,7 @@ class Program
 
     static int RunNewModProject(NewModProjectOptions opts)
     {
-        string GenerateSoleId()
+        static string GenerateSoleId()
         {
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             return new string(Enumerable.Range(0, 6).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
@@ -797,7 +793,7 @@ class Program
 
     static JsonObject NewModDataCache(string? soleId)
     {
-        JsonObject EmptyGroup()
+        static JsonObject EmptyGroup()
         {
             return new JsonObject
             {
@@ -842,16 +838,16 @@ class Program
                        string rePattern = "",
                        SearchOption searchOption = SearchOption.AllDirectories)
     {
-        Regex re = new Regex(rePattern, RegexOptions.IgnoreCase);
+        var re = new Regex(rePattern, RegexOptions.IgnoreCase);
         return Directory.EnumerateFiles(path, "*", searchOption)
                         .Where(file =>
                                  re.IsMatch(Path.GetFileName(file)));
     }
 }
 
-public class SaveUnpackMetadata
+class SaveUnpackMetadata
 {
-    public Dictionary<string, FileMeta> Files { get; set; } = new();
+    public Dictionary<string, FileMeta> Files { get; set; } = [];
 
     public class FileMeta
     {
@@ -904,7 +900,7 @@ class UnpackOptions
 }
 
 [Verb("new", HelpText = "Create a new mod template folder.")]
-public class NewModProjectOptions
+class NewModProjectOptions
 {
     [Value(0, MetaName = "name", Required = true, HelpText = "Name of the mod (and folder).")]
     public string Name { get; set; } = default!;
