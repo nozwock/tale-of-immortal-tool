@@ -476,6 +476,7 @@ class Program
             exportRoot = new JsonObject
             {
                 ["projectData"] = projectNode,
+                // TODO: Doesn't support packing ModData, only modNamespace is read from it currently
                 ["items"] = new JsonObject(),
                 ["modNamespace"] = null
             };
@@ -496,8 +497,17 @@ class Program
             throw new FileNotFoundException("Missing required ModProject.cache in root folder.", projPath);
         }
 
+        var modDataPath = Path.Combine(root, "ModData.cache");
+        if (File.Exists(modDataPath))
+        {
+            var modDataRoot = JsonNode.Parse(File.ReadAllText(modDataPath, Encoding.UTF8))!.AsObject();
+            // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
+            exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? modDataRoot["modNamespace"]?.GetValue<string?>();
+        }
+        exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? (soleId != null ? $"MOD_{soleId}" : null);
+
         Console.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
-        var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>() ?? (soleId != null ? $"MOD_{soleId}" : null);
+        var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>();
         SetupOutputModFolder(root, outRoot, modNamespace);
         root = outRoot; // Operating in output folder now
         projPath = Path.Combine(root, "ModProject.cache");
@@ -505,11 +515,6 @@ class Program
 
         Console.WriteLine("Writing 'ModExportData.cache'");
 
-        if (soleId != null)
-        {
-            // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
-            exportRoot["modNamespace"] = $"MOD_{soleId}";
-        }
         var exportJsonBytes = Encoding.UTF8.GetBytes(
             exportRoot.ToJsonString(new JsonSerializerOptions
             {
@@ -520,7 +525,6 @@ class Program
         var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
         File.WriteAllBytes(exportPath, exportEncrypted);
 
-        var modDataPath = Path.Combine(root, "ModData.cache");
         if (File.Exists(projPath)) File.Delete(projPath);
         if (File.Exists(modDataPath)) File.Delete(modDataPath);
 
