@@ -13,6 +13,12 @@ using ICSharpCode.SharpZipLib.GZip;
 
 class Program
 {
+    static readonly JsonSerializerOptions jsonPrettySerializerOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public static int Main(string[] args)
     {
         var parser = new Parser(config =>
@@ -188,12 +194,7 @@ class Program
                 try
                 {
                     using var doc = JsonDocument.Parse(decompressed);
-                    decompressed = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                    }
-                    ));
+                    decompressed = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(doc.RootElement, jsonPrettySerializerOptions));
                 }
                 catch { }
 
@@ -221,7 +222,7 @@ class Program
             }
 
             var metaPath = Path.Combine(opts.Path, SAVE_UNPACK_META_FILENAME);
-            File.WriteAllText(metaPath, JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(metaPath, JsonSerializer.Serialize(metadata, jsonPrettySerializerOptions));
         }
         else if (File.Exists(opts.Path))
         {
@@ -337,11 +338,7 @@ class Program
                 Console.Error.WriteLine($"Disabling excelEncrypt in '{exportPath}'");
                 json["projectData"]!["excelEncrypt"] = false;
 
-                var modified = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                }));
+                var modified = Encoding.UTF8.GetBytes(json.ToJsonString(jsonPrettySerializerOptions));
                 File.WriteAllBytes(exportPath, EncryptTool.EncryptMult(modified, EncryptTool.modEncryPassword));
             }
             else
@@ -516,11 +513,7 @@ class Program
         Console.Error.WriteLine("Writing 'ModExportData.cache'");
 
         var exportJsonBytes = Encoding.UTF8.GetBytes(
-            exportRoot.ToJsonString(new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            })
+            exportRoot.ToJsonString(jsonPrettySerializerOptions)
         );
         var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
         File.WriteAllBytes(exportPath, exportEncrypted);
@@ -618,11 +611,7 @@ class Program
                 var filePath = Path.Combine(jsonDir, filename + ".json");
                 Console.Error.WriteLine($"Unpacking ModExportData's {filename} to `{filePath}`");
                 File.WriteAllText(filePath,
-                    data.ToJsonString(new JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                    }),
+                    data.ToJsonString(jsonPrettySerializerOptions),
                     Encoding.UTF8
                 );
             }
@@ -631,22 +620,14 @@ class Program
         // Write ModProject.cache
         var projPath = Path.Combine(root, "ModProject.cache");
         File.WriteAllText(projPath,
-            projectData.ToJsonString(new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            }),
+            projectData.ToJsonString(jsonPrettySerializerOptions),
             Encoding.UTF8);
 
         var soleId = projectData["soleID"]?.GetValue<string>();
         var modData = NewModDataCache(soleId);
         var modDataPath = Path.Combine(root, "ModData.cache");
         File.WriteAllText(modDataPath,
-            modData.ToJsonString(new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            }),
+            modData.ToJsonString(jsonPrettySerializerOptions),
             Encoding.UTF8);
 
         // Delete ModExportData.cache
@@ -684,11 +665,7 @@ class Program
         var modData = NewModDataCache(soleId);
 
         File.WriteAllText(Path.Combine(root, "ModData.cache"),
-            JsonSerializer.Serialize(modData, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            }));
+            JsonSerializer.Serialize(modData, jsonPrettySerializerOptions));
 
         // ModProject.cache
         var modProject = new JsonObject
@@ -713,11 +690,7 @@ class Program
         };
 
         File.WriteAllText(Path.Combine(root, "ModProject.cache"),
-            JsonSerializer.Serialize(modProject, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            }));
+            JsonSerializer.Serialize(modProject, jsonPrettySerializerOptions));
 
         Console.Error.WriteLine($"New mod template created at '{root}'");
         return 0;
@@ -761,11 +734,7 @@ class Program
         try
         {
             var doc = JsonDocument.Parse(decryptedText);
-            formattedJson = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            });
+            formattedJson = JsonSerializer.Serialize(doc.RootElement, jsonPrettySerializerOptions);
         }
         catch (Exception ex)
         {
