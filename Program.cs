@@ -353,7 +353,7 @@ class Program
         foreach (var file in GetFilesByPattern(root, @"\.png$"))
         {
             var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets" + Path.DirectorySeparatorChar) | relPath.StartsWith("ModCode" + Path.DirectorySeparatorChar))
+            if (relPath.StartsWith("ModAssets") || relPath.StartsWith("ModCode") || relPath.StartsWith("ModExcel"))
                 continue;
 
             data = File.ReadAllBytes(file);
