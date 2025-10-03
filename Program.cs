@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -69,7 +69,7 @@ class Program
                     continue;
                 }
 
-                Console.WriteLine($"Encrypting '{file}'");
+                Console.Error.WriteLine($"Encrypting '{file}'");
                 var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
                 File.WriteAllBytes(file, encrypted);
             }
@@ -83,13 +83,13 @@ class Program
                 return 0;
             }
 
-            Console.WriteLine($"Encrypting '{file}'");
+            Console.Error.WriteLine($"Encrypting '{file}'");
             var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, encrypted);
         }
         else
         {
-            Console.WriteLine($"Neither a file nor directory: '{opts.Path}'");
+            Console.Error.WriteLine($"Neither a file nor directory: '{opts.Path}'");
             return 1;
         }
         return 0;
@@ -334,7 +334,7 @@ class Program
             var json = JsonNode.Parse(decrypted);
             if (json?["projectData"]?["excelEncrypt"] != null && json["projectData"]!["excelEncrypt"]!.GetValue<bool>())
             {
-                Console.WriteLine($"Disabling excelEncrypt in '{exportPath}'");
+                Console.Error.WriteLine($"Disabling excelEncrypt in '{exportPath}'");
                 json["projectData"]!["excelEncrypt"] = false;
 
                 var modified = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions
@@ -346,7 +346,7 @@ class Program
             }
             else
             {
-                Console.WriteLine($"excelEncrypt is already disabled in '{exportPath}'");
+                Console.Error.WriteLine($"excelEncrypt is already disabled in '{exportPath}'");
             }
         }
 
@@ -362,7 +362,7 @@ class Program
                 continue;
             }
 
-            Console.WriteLine($"Encrypting '{file}'");
+            Console.Error.WriteLine($"Encrypting '{file}'");
             File.WriteAllBytes(file, EncryptTool.EncryptMult(File.ReadAllBytes(file), EncryptTool.modEncryPassword));
         }
 
@@ -377,7 +377,7 @@ class Program
                 continue;
             }
 
-            Console.WriteLine($"Decrypting '{file}'");
+            Console.Error.WriteLine($"Decrypting '{file}'");
             File.WriteAllBytes(file, EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword));
         }
         return 0;
@@ -393,7 +393,7 @@ class Program
                 var releaseDir = Path.Combine(input, "ModCode", "ModMain", "bin", "Release");
                 var modMainDll = Path.Combine(releaseDir, $"{modNamespace}.dll");
 
-                Console.WriteLine($"modNamespace: {modNamespace}");
+                Console.Error.WriteLine($"modNamespace: {modNamespace}");
                 if (File.Exists(modMainDll))
                 {
                     // Copy over all files from `ModCode/ModMain/bin/Release` if main dll exists
@@ -449,7 +449,7 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine($"Copying: '{srcPath}' -> '{targetPath}'");
+                    Console.Error.WriteLine($"Copying: '{srcPath}' -> '{targetPath}'");
                     File.Copy(srcPath, targetPath, true);
                 }
             }
@@ -506,14 +506,14 @@ class Program
         }
         exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? (soleId != null ? $"MOD_{soleId}" : null);
 
-        Console.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
+        Console.Error.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
         var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>();
         SetupOutputModFolder(root, outRoot, modNamespace);
         root = outRoot; // Operating in output folder now
         projPath = Path.Combine(root, "ModProject.cache");
         exportPath = Path.Combine(root, "ModExportData.cache");
 
-        Console.WriteLine("Writing 'ModExportData.cache'");
+        Console.Error.WriteLine("Writing 'ModExportData.cache'");
 
         var exportJsonBytes = Encoding.UTF8.GetBytes(
             exportRoot.ToJsonString(new JsonSerializerOptions
@@ -542,12 +542,12 @@ class Program
                 byte[] bytes;
                 if (excelEncrypt)
                 {
-                    Console.WriteLine($"Encrypting '{file}'");
+                    Console.Error.WriteLine($"Encrypting '{file}'");
                     bytes = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
                 }
                 else
                 {
-                    Console.WriteLine($"Decrypting '{file}'");
+                    Console.Error.WriteLine($"Decrypting '{file}'");
                     bytes = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
                 }
                 File.WriteAllBytes(file, bytes);
@@ -567,12 +567,12 @@ class Program
                 continue;
             }
 
-            Console.WriteLine($"Encrypting '{file}'");
+            Console.Error.WriteLine($"Encrypting '{file}'");
             var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, enc);
         }
 
-        Console.WriteLine("Pack completed.");
+        Console.Error.WriteLine("Pack completed.");
         return 0;
     }
 
@@ -603,7 +603,7 @@ class Program
             // Skip ModExportData.cache metadata file
             if (Path.GetFileName(exportPath).Equals(file, StringComparison.OrdinalIgnoreCase)) continue;
 
-            Console.WriteLine($"Decrypting '{file}'");
+            Console.Error.WriteLine($"Decrypting '{file}'");
             var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, decrypted);
         }
@@ -652,7 +652,7 @@ class Program
         // Delete ModExportData.cache
         File.Delete(exportPath);
 
-        Console.WriteLine("Unpack completed.");
+        Console.Error.WriteLine("Unpack completed.");
         return 0;
     }
 
@@ -719,7 +719,7 @@ class Program
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             }));
 
-        Console.WriteLine($"New mod template created at '{root}'");
+        Console.Error.WriteLine($"New mod template created at '{root}'");
         return 0;
     }
 
@@ -817,7 +817,7 @@ class Program
             // Encrypt and overwrite
             File.WriteAllBytes(opts.InputFile, EncryptTool.EncryptMult(modifiedData, EncryptTool.modEncryPassword));
 
-            Console.WriteLine($"Updated file '{opts.InputFile}'");
+            Console.Error.WriteLine($"Updated file '{opts.InputFile}'");
             return 0;
         }
         finally
