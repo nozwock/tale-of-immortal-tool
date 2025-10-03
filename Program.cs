@@ -917,7 +917,7 @@ class RestoreExcelOptions
     public string Folder { get; set; } = "";
 }
 
-[Verb("pack", HelpText = "Pack mod files, so that the mod can be loaded in-game.\nDlls and related assets from 'ModCode/ModMain/bin/Release/' gets copied over to 'ModCode/dll/'.")]
+[Verb("pack", HelpText = "Pack mod files, so that the mod can be loaded in-game.\nDon't try to pack mod made using the in-game mod creator, as ModData.cache is largely ignored except for `.modNamespace`.\nDlls and related assets from 'ModCode/ModMain/bin/Release/' gets copied over to 'ModCode/dll/'.")]
 class PackOptions
 {
     [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
@@ -941,7 +941,7 @@ public class NewModProjectOptions
     public string Name { get; set; } = default!;
 }
 
-[Verb("edit", HelpText = "Edit encrypted file in default text editor (Currently restricted to json files). Useful for editing 'ModExportData.cache'.")]
+[Verb("edit", HelpText = "Edit encrypted file in default text editor (currently restricted to json files). Useful for editing 'ModExportData.cache'.")]
 class EditOptions
 {
     [Value(0, Required = true, HelpText = "Path to the file.")]
