@@ -604,6 +604,26 @@ class Program
             File.WriteAllBytes(file, decrypted);
         }
 
+        if (exportNode["items"] is JsonObject items)
+        {
+            var jsonDir = Path.Combine(root, "ModExcel", "ModExportDataJson");
+            Directory.CreateDirectory(jsonDir);
+
+            foreach (var (filename, data) in items)
+            {
+                var filePath = Path.Combine(jsonDir, filename + ".json");
+                Console.Error.WriteLine($"Unpacking ModExportData's {filename} to `{filePath}`");
+                File.WriteAllText(filePath,
+                    data.ToJsonString(new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    }),
+                    Encoding.UTF8
+                );
+            }
+        }
+
         // Write ModProject.cache
         var projPath = Path.Combine(root, "ModProject.cache");
         File.WriteAllText(projPath,
@@ -614,20 +634,8 @@ class Program
             }),
             Encoding.UTF8);
 
-        // Build ModData.cache (default)
-        // TODO: Needs to be updated, like how it's done in NewModProject()
-        // Need to be properly constructed
-        var modData = new JsonObject();
         var soleId = projectData["soleID"]?.GetValue<string>();
-        if (soleId != null)
-        {
-            modData["modNamespace"] = $"MOD_{soleId}";
-        }
-        else
-        {
-            modData["modNamespace"] = null;
-        }
-
+        var modData = NewModDataCache(soleId);
         var modDataPath = Path.Combine(root, "ModData.cache");
         File.WriteAllText(modDataPath,
             modData.ToJsonString(new JsonSerializerOptions
@@ -646,15 +654,6 @@ class Program
 
     static int RunNewModProject(NewModProjectOptions opts)
     {
-        JsonObject EmptyGroup()
-        {
-            return new JsonObject
-            {
-                ["groupName"] = new JsonArray(),
-                ["items"] = new JsonArray()
-            };
-        }
-
         string GenerateSoleId()
         {
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -663,8 +662,6 @@ class Program
 
         // Generate IDs
         string soleId = GenerateSoleId();
-        int cdGroup = Random.Shared.Next(int.MinValue, int.MaxValue);
-        int excelMid = Random.Shared.Next(int.MinValue, int.MaxValue);
         long createTicks = DateTime.UtcNow.Ticks;
 
         string root = $"Mod_{soleId} {opts.Name}";
@@ -679,33 +676,8 @@ class Program
         Directory.CreateDirectory(Path.Combine(root, "ModCode", "ModMain"));
         Directory.CreateDirectory(Path.Combine(root, "ModExcel"));
 
-
         // ModData.cache
-        var modData = new JsonObject
-        {
-            ["roleCreateFeature"] = EmptyGroup(),
-            ["fortuitousEvent"] = new JsonObject
-            {
-                ["cdGroup"] = new JsonObject { ["value"] = cdGroup },
-                ["groupName"] = new JsonArray(),
-                ["items"] = new JsonArray()
-            },
-            ["npcCondition"] = EmptyGroup(),
-            ["mapPosition"] = EmptyGroup(),
-            ["worldFortuitousEventBase"] = EmptyGroup(),
-            ["itemProps"] = EmptyGroup(),
-            ["taskBase"] = EmptyGroup(),
-            ["dramaDialogue"] = EmptyGroup(),
-            ["dramaNpc"] = EmptyGroup(),
-            ["npcAddWorld"] = EmptyGroup(),
-            ["schoolSmall"] = EmptyGroup(),
-            ["schoolInitScale"] = EmptyGroup(),
-            ["schoolCustom"] = EmptyGroup(),
-            ["horseModel"] = EmptyGroup(),
-            ["dungeonBase"] = EmptyGroup(),
-            ["excelMID"] = excelMid,
-            ["modNamespace"] = $"MOD_{soleId}"
-        };
+        var modData = NewModDataCache(soleId);
 
         File.WriteAllText(Path.Combine(root, "ModData.cache"),
             JsonSerializer.Serialize(modData, new JsonSerializerOptions
@@ -746,6 +718,7 @@ class Program
         Console.WriteLine($"New mod template created at '{root}'");
         return 0;
     }
+
     static int RunEdit(EditOptions opts)
     {
         static string GetEditor()
@@ -847,6 +820,49 @@ class Program
         {
             if (File.Exists(tempFile)) File.Delete(tempFile);
         }
+    }
+
+    static JsonObject NewModDataCache(string? soleId)
+    {
+        JsonObject EmptyGroup()
+        {
+            return new JsonObject
+            {
+                ["groupName"] = new JsonArray(),
+                ["items"] = new JsonArray()
+            };
+        }
+
+        int cdGroup = Random.Shared.Next(int.MinValue, int.MaxValue);
+        int excelMid = Random.Shared.Next(int.MinValue, int.MaxValue);
+
+        var modData = new JsonObject
+        {
+            ["roleCreateFeature"] = EmptyGroup(),
+            ["fortuitousEvent"] = new JsonObject
+            {
+                ["cdGroup"] = new JsonObject { ["value"] = cdGroup },
+                ["groupName"] = new JsonArray(),
+                ["items"] = new JsonArray()
+            },
+            ["npcCondition"] = EmptyGroup(),
+            ["mapPosition"] = EmptyGroup(),
+            ["worldFortuitousEventBase"] = EmptyGroup(),
+            ["itemProps"] = EmptyGroup(),
+            ["taskBase"] = EmptyGroup(),
+            ["dramaDialogue"] = EmptyGroup(),
+            ["dramaNpc"] = EmptyGroup(),
+            ["npcAddWorld"] = EmptyGroup(),
+            ["schoolSmall"] = EmptyGroup(),
+            ["schoolInitScale"] = EmptyGroup(),
+            ["schoolCustom"] = EmptyGroup(),
+            ["horseModel"] = EmptyGroup(),
+            ["dungeonBase"] = EmptyGroup(),
+            ["excelMID"] = excelMid,
+            ["modNamespace"] = soleId != null ? $"MOD_{soleId}" : null
+        };
+
+        return modData;
     }
 
     public static IEnumerable<string> GetFilesByPattern(string path,
