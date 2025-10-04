@@ -504,6 +504,7 @@ class Program
         SetupOutputModFolder(root, outRoot, modNamespace);
         root = outRoot; // Operating in output folder now
         projPath = Path.Combine(root, "ModProject.cache");
+        modDataPath = Path.Combine(root, "ModData.cache");
         exportPath = Path.Combine(root, "ModExportData.cache");
 
         Console.Error.WriteLine("Writing 'ModExportData.cache'");
