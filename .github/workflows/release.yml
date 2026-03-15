@@ -5,6 +5,9 @@ on:
     tags:
       - "*"
 
+permissions:
+  contents: write
+
 defaults:
   run:
     shell: pwsh
@@ -27,9 +30,6 @@ jobs:
           - kind: macOS
             target: osx-x64
             os: macos-latest
-
-    permissions:
-      contents: write
 
     steps:
       - uses: actions/checkout@v6
@@ -88,9 +88,6 @@ jobs:
     name: Build NuGet Package
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
 
     steps:
       - uses: actions/checkout@v6
