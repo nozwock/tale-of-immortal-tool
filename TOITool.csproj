@@ -8,8 +8,8 @@
 
     <AssemblyName>toi</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
-    <!-- Disabled due to trimming not being viable with Json, and the filesize without trimming is quite a lot -->
-    <SelfContained>false</SelfContained>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>true</PublishTrimmed>
 
     <DebugType Condition="'$(Configuration)' == 'Release'">None</DebugType>
 
