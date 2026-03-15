@@ -126,6 +126,11 @@ class Program
         cmdUnpack.SetAction(parsed =>
             RunUnpack(parsed.GetValue(argModFolder)!));
 
+        var cmdMod = new Command("mod", "Mod files packing and unpacking.")
+        {
+            Subcommands = { cmdRestoreExcel, cmdPack, cmdUnpack },
+        };
+
         var argSavePath = new Argument<FileSystemInfo>("path")
         {
             Description = "Save file or folder containing save files.",
@@ -179,9 +184,7 @@ class Program
                 cmdEdit,
                 cmdEncrypt,
                 cmdDecrypt,
-                cmdRestoreExcel,
-                cmdPack,
-                cmdUnpack,
+                cmdMod,
                 cmdSave,
             }
         };
