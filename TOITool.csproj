@@ -12,6 +12,9 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <PublishTrimmed>true</PublishTrimmed>
+    <!-- There's also PublishReadyToRun which includes both native code and CIL, there to speed up the launch, doesn't
+    have downsides of NativeAOT at the cost of disk space -->
+    <PublishAOT>true</PublishAOT>
 
     <DebugType Condition="'$(Configuration)' == 'Release'">None</DebugType>
 
