@@ -19,16 +19,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        kind: ["linux", "windows", "macOS"]
+        target: ["linux-x64", "win-x64", "osx-arm64"]
         include:
-          - kind: linux
-            target: linux-x64
+          - target: linux-x64
             os: ubuntu-latest
-          - kind: windows
-            target: win-x64
+          - target: win-x64
             os: windows-latest
-          - kind: macOS
-            target: osx-x64
+          - target: osx-arm64
             os: macos-latest
 
     steps:
