@@ -1,10 +1,9 @@
+using System.CommandLine;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using CommandLine;
-using CommandLine.Text;
 using ICSharpCode.SharpZipLib.GZip;
 
 namespace TOITool;
@@ -17,55 +16,181 @@ class Program
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    public static int Main(string[] args)
+    static int Main(string[] args)
     {
-        var parser = new Parser(config =>
+        var argPath = new Argument<string>("path")
         {
-            config.HelpWriter = null;
-        });
-        var parserResult = parser.ParseArguments<
-            NewModProjectOptions,
-            EncryptOptions,
-            DecryptOptions,
-            RestoreExcelOptions,
-            PackOptions,
-            UnpackOptions,
-            EditOptions,
-            SaveUnpackOptions,
-            SavePackOptions
-        >(args);
+            Description = "File or folder containing files.",
+        };
+        var argModFolder = new Argument<string>("folder")
+        {
+            Description = "Folder containing mod files.",
+        };
 
-        return parserResult
-            .MapResult(
-                (EncryptOptions opts) => RunEncrypt(opts),
-                (DecryptOptions opts) => RunDecrypt(opts),
-                (SaveUnpackOptions opts) => RunSaveUnpack(opts),
-                (SavePackOptions opts) => RunSavePack(opts),
-                (RestoreExcelOptions opts) => RunRestoreExcel(opts),
-                (PackOptions opts) => RunPack(opts),
-                (UnpackOptions opts) => RunUnpack(opts),
-                (NewModProjectOptions opts) => RunNewModProject(opts),
-                (EditOptions opts) => RunEdit(opts),
-                errs =>
-                {
-                    var helpText = HelpText.AutoBuild(parserResult, h =>
-                    {
-                        h.AdditionalNewLineAfterOption = false;
-                        h.Heading = new HeadingInfo("Mod tooling for Tale of Immortal");
-                        h.Copyright = "";
-                        return HelpText.DefaultParsingErrorsHandler(parserResult, h);
-                    }, e => e);
-                    Console.WriteLine(helpText);
+        var argModName = new Argument<string>("name")
+        {
+            Description = "Name of the mod (and folder).",
+        };
+        var cmdNewMod = new Command(
+            "new",
+            "Create a new mod template folder."
+        )
+        {
+            argModName
+        };
+        cmdNewMod.SetAction(parsed =>
+            RunNewModProject(parsed.GetValue(argModName)!));
 
-                    return 1;
-                });
+        var argInputFile = new Argument<string>("file")
+        {
+            Description = "Path to the file.",
+        };
+        var cmdEdit = new Command(
+            "edit",
+            "Edit encrypted file in default text editor (currently restricted to json files)."
+            + " Useful for editing 'ModExportData.cache'."
+        )
+        {
+            argInputFile
+        };
+        cmdEdit.SetAction(parsed =>
+            RunEdit(parsed.GetValue(argInputFile)!));
+
+        var cmdEncrypt = new Command("encrypt", "Encrypt a single file or all files in a folder (in-place).")
+        {
+            argPath
+        };
+        cmdEncrypt.SetAction(parsed =>
+            RunEncrypt(parsed.GetValue(argPath)!));
+
+        var optDecryptInplace = new Option<bool>("--in-place")
+        {
+            Description = """
+                Decrypt file in place. Output to stdout otherwise.
+                Only applies when the `path` is a file. For folders, it's always in place.
+                """,
+            Aliases = { "-i" },
+        };
+        var cmdDecrypt = new Command("decrypt", "Decrypt a single file or all files in a folder (in-place).")
+        {
+            argPath,
+            optDecryptInplace,
+        };
+        cmdDecrypt.SetAction(parsed =>
+            RunDecrypt(
+                parsed.GetValue(argPath)!,
+                parsed.GetValue(optDecryptInplace)));
+
+        var cmdRestoreExcel = new Command(
+            "restore-excel",
+            "Decrypt json mod files (in-place), and set excelEncrypt=false for ModExportData.cache."
+        )
+        {
+            argModFolder
+        };
+        cmdRestoreExcel.SetAction(parsed =>
+            RunRestoreExcel(parsed.GetValue(argModFolder)!));
+
+        var optPackOutput = new Option<string?>("--output")
+        {
+            Description = "Output folder. Defaults to input folder.",
+            Aliases = { "-o" },
+        };
+        var cmdPack = new Command(
+            "pack",
+            """
+            Pack mod files, so that the mod can be loaded in-game.
+            Don't try to pack mod made using the in-game mod creator, as ModData.cache is largely ignored except for `.modNamespace`.
+            Dlls and related assets from 'ModCode/ModMain/bin/Release/' gets copied over to 'ModCode/dll/'.
+            """
+        )
+        {
+            argModFolder,
+            optPackOutput
+        };
+        cmdPack.SetAction(parsed =>
+            RunPack(
+                parsed.GetValue(argModFolder)!,
+                parsed.GetValue(optPackOutput)));
+
+        var cmdUnpack = new Command(
+            "unpack",
+            "Unpack mod files (in-place), so that the mod can be edited in the in-game mod editor."
+        )
+        {
+            argModFolder
+        };
+        cmdUnpack.SetAction(parsed =>
+            RunUnpack(parsed.GetValue(argModFolder)!));
+
+        var argSavePath = new Argument<string>("path")
+        {
+            Description = "Save file or folder containing save files.",
+        };
+        var optNoEncryptFilenames = new Option<bool>("--keep-names")
+        {
+            Description = "Keep original filenames, do not encrypt them.",
+            Aliases = { "-k" },
+        };
+        var cmdSavePack = new Command(
+            "pack",
+            "Compress and encrypt a single save file or all save files in a folder (in-place)."
+        )
+        {
+            argSavePath,
+            optNoEncryptFilenames
+        };
+        cmdSavePack.SetAction(parsed =>
+            RunSavePack(
+                parsed.GetValue(argSavePath)!,
+                parsed.GetValue(optNoEncryptFilenames)));
+
+        var optNoDecryptFilenames = new Option<bool>("--keep-names")
+        {
+            Description = "Keep original filenames, do not decrypt them.",
+            Aliases = { "-k" },
+        };
+        var cmdSaveUnpack = new Command(
+            "unpack",
+            "Decompress and decrypt a single save file or all save files in a folder (in-place)."
+        )
+        {
+            argSavePath,
+            optNoDecryptFilenames
+        };
+        cmdSaveUnpack.SetAction(parsed =>
+            RunSaveUnpack(
+                parsed.GetValue(argSavePath)!,
+                parsed.GetValue(optNoDecryptFilenames)));
+
+        var cmdSave = new Command("save", "Savegame packing and unpacking.")
+        {
+            Subcommands = { cmdSaveUnpack, cmdSavePack },
+        };
+
+        var cmdRoot = new RootCommand("Modding tooling for Tale of Immortal")
+        {
+            Subcommands =
+            {
+                cmdNewMod,
+                cmdEdit,
+                cmdEncrypt,
+                cmdDecrypt,
+                cmdRestoreExcel,
+                cmdPack,
+                cmdUnpack,
+                cmdSave,
+            }
+        };
+
+        return cmdRoot.Parse(args).Invoke();
     }
 
-    static int RunEncrypt(EncryptOptions opts)
+    static int RunEncrypt(string path)
     {
-        if (Directory.Exists(opts.Path))
+        if (Directory.Exists(path))
         {
-            foreach (var file in Directory.EnumerateFiles(opts.Path, "*", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
             {
                 var data = File.ReadAllBytes(file);
                 if (EncryptTool.LooksEncrypted(data))
@@ -78,9 +203,9 @@ class Program
                 File.WriteAllBytes(file, encrypted);
             }
         }
-        else if (File.Exists(opts.Path))
+        else if (File.Exists(path))
         {
-            var file = opts.Path;
+            var file = path;
             var data = File.ReadAllBytes(file);
             if (EncryptTool.LooksEncrypted(data))
             {
@@ -93,17 +218,17 @@ class Program
         }
         else
         {
-            Console.Error.WriteLine($"Neither a file nor directory: '{opts.Path}'");
+            Console.Error.WriteLine($"Neither a file nor directory: '{path}'");
             return 1;
         }
         return 0;
     }
 
-    static int RunDecrypt(DecryptOptions opts)
+    static int RunDecrypt(string path, bool inplace)
     {
-        if (Directory.Exists(opts.Path))
+        if (Directory.Exists(path))
         {
-            foreach (var file in Directory.EnumerateFiles(opts.Path, "*", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
             {
                 var data = File.ReadAllBytes(file);
                 if (!EncryptTool.LooksEncrypted(data))
@@ -116,9 +241,9 @@ class Program
                 File.WriteAllBytes(file, decrypted);
             }
         }
-        else if (File.Exists(opts.Path))
+        else if (File.Exists(path))
         {
-            var file = opts.Path;
+            var file = path;
             var data = File.ReadAllBytes(file);
             if (!EncryptTool.LooksEncrypted(data))
             {
@@ -127,7 +252,7 @@ class Program
 
             Console.Error.WriteLine($"Decrypting '{file}'");
             var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
-            if (opts.Inplace)
+            if (inplace)
             {
                 File.WriteAllBytes(file, decrypted);
             }
@@ -138,7 +263,7 @@ class Program
         }
         else
         {
-            Console.Error.WriteLine($"Neither a file nor directory: '{opts.Path}'");
+            Console.Error.WriteLine($"Neither a file nor directory: '{path}'");
             return 1;
         }
         return 0;
@@ -147,7 +272,7 @@ class Program
     const string SAVE_UNPACK_META_FILENAME = "unpack_metadata.json";
 
     // For PC, on Android it's gzipped BinaryFormatter serialized objects instead
-    static int RunSaveUnpack(SaveUnpackOptions opts)
+    static int RunSaveUnpack(string path, bool keepNames)
     {
         var metadata = new SaveUnpackMetadata();
 
@@ -177,7 +302,7 @@ class Program
                 {
                     var decryptedName = EncryptTool.DecryptDES(outputBasename, EncryptTool.cacheEncryPassword);
                     meta.IsOriginalNameEncrypted = true;
-                    if (!opts.KeepNames)
+                    if (!keepNames)
                     {
                         meta.IsNameDecrypted = true;
                         outputBasename = decryptedName;
@@ -203,39 +328,39 @@ class Program
                 File.Delete(filePath);
                 File.WriteAllBytes(outFile, decompressed);
 
-                metadata.Files[Path.GetRelativePath(opts.Path, outFile)] = meta;
+                metadata.Files[Path.GetRelativePath(path, outFile)] = meta;
             }
             else
             {
                 Console.Error.WriteLine($"`{filePath}` isn't encrypted, skipped.");
-                metadata.Files[Path.GetRelativePath(opts.Path, filePath)] = meta;
+                metadata.Files[Path.GetRelativePath(path, filePath)] = meta;
             }
         }
 
-        if (Directory.Exists(opts.Path))
+        if (Directory.Exists(path))
         {
-            foreach (var file in Directory.EnumerateFiles(opts.Path, "*", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
             {
                 ProcessFile(file);
             }
 
-            var metaPath = Path.Combine(opts.Path, SAVE_UNPACK_META_FILENAME);
+            var metaPath = Path.Combine(path, SAVE_UNPACK_META_FILENAME);
             File.WriteAllText(metaPath, JsonSerializer.Serialize(metadata, jsonPrettySerializerOptions));
         }
-        else if (File.Exists(opts.Path))
+        else if (File.Exists(path))
         {
-            ProcessFile(opts.Path);
+            ProcessFile(path);
         }
         else
         {
-            Console.Error.WriteLine($"Neither a file nor directory: `{opts.Path}`");
+            Console.Error.WriteLine($"Neither a file nor directory: `{path}`");
             return 1;
         }
 
         return 0;
     }
 
-    static int RunSavePack(SavePackOptions opts)
+    static int RunSavePack(string path, bool keepNames)
     {
         byte[] Compress(byte[] input)
         {
@@ -271,7 +396,7 @@ class Program
             var compressed = Compress(bytes);
             var encrypted = EncryptTool.EncryptMult(compressed, EncryptTool.cacheEncryPassword);
 
-            if (!opts.KeepNames && (meta == null || (meta.IsOriginalNameEncrypted && meta.IsNameDecrypted)))
+            if (!keepNames && (meta == null || (meta.IsOriginalNameEncrypted && meta.IsNameDecrypted)))
             {
                 outputBasename = EncryptTool.EncryptDES(outputBasename, EncryptTool.cacheEncryPassword);
             }
@@ -283,9 +408,9 @@ class Program
             File.WriteAllBytes(outFile, encrypted);
         }
 
-        if (Directory.Exists(opts.Path))
+        if (Directory.Exists(path))
         {
-            var metaPath = Path.Combine(opts.Path, SAVE_UNPACK_META_FILENAME);
+            var metaPath = Path.Combine(path, SAVE_UNPACK_META_FILENAME);
             if (!File.Exists(metaPath))
             {
                 Console.Error.WriteLine("Metadata file not found. Run save-unpack first.");
@@ -297,7 +422,7 @@ class Program
             {
                 var relPath = kv.Key;
                 var meta = kv.Value;
-                var filePath = Path.Combine(opts.Path, relPath);
+                var filePath = Path.Combine(path, relPath);
 
                 ProcessFile(filePath, meta);
             }
@@ -305,22 +430,22 @@ class Program
             Console.Error.WriteLine("Pack complete, removing metadata file...");
             File.Delete(metaPath);
         }
-        else if (File.Exists(opts.Path))
+        else if (File.Exists(path))
         {
-            ProcessFile(opts.Path);
+            ProcessFile(path);
         }
         else
         {
-            Console.Error.WriteLine($"Neither a file nor directory: `{opts.Path}`");
+            Console.Error.WriteLine($"Neither a file nor directory: `{path}`");
             return 1;
         }
 
         return 0;
     }
 
-    static int RunRestoreExcel(RestoreExcelOptions opts)
+    static int RunRestoreExcel(string folder)
     {
-        var root = opts.Folder;
+        var root = folder;
 
         byte[] data;
 
@@ -378,7 +503,7 @@ class Program
         return 0;
     }
 
-    static int RunPack(PackOptions opts)
+    static int RunPack(string folder, string? outputFolder)
     {
         static void SetupOutputModFolder(string input, string output, string? modNamespace)
         {
@@ -451,8 +576,8 @@ class Program
 
         }
 
-        var root = opts.Folder;
-        var outRoot = opts.OutputFolder ?? root;
+        var root = folder;
+        var outRoot = outputFolder ?? root;
         var projPath = Path.Combine(root, "ModProject.cache");
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
@@ -568,10 +693,10 @@ class Program
         return 0;
     }
 
-    static int RunUnpack(UnpackOptions opts)
+    static int RunUnpack(string folder)
     {
         // TODO: Add an option for separate output folder
-        var root = opts.Folder;
+        var root = folder;
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
         if (!File.Exists(exportPath))
@@ -636,7 +761,7 @@ class Program
         return 0;
     }
 
-    static int RunNewModProject(NewModProjectOptions opts)
+    static int RunNewModProject(string name)
     {
         static string GenerateSoleId()
         {
@@ -648,7 +773,7 @@ class Program
         string soleId = GenerateSoleId();
         long createTicks = DateTime.UtcNow.Ticks;
 
-        string root = $"Mod_{soleId} {opts.Name}";
+        string root = $"Mod_{soleId} {name}";
         if (Directory.Exists(root))
         {
             Console.Error.WriteLine($"Error: Folder '{root}' already exists.");
@@ -671,7 +796,7 @@ class Program
         {
             ["soleID"] = soleId,
             ["createTicks"] = createTicks,
-            ["name"] = $"Mod {soleId} {opts.Name}",
+            ["name"] = $"Mod {soleId} {name}",
             ["author"] = "unknown",
             ["desc"] = $"Creation Time {DateTime.Now:yyyy_MM_dd_HH_mm_ss}",
             ["ver"] = "1.0.0",
@@ -695,7 +820,7 @@ class Program
         return 0;
     }
 
-    static int RunEdit(EditOptions opts)
+    static int RunEdit(string inputFile)
     {
         static string GetEditor()
         {
@@ -713,16 +838,16 @@ class Program
             return "vi"; // Linux default
         }
 
-        if (!File.Exists(opts.InputFile))
+        if (!File.Exists(inputFile))
         {
-            Console.Error.WriteLine("File not found: " + opts.InputFile);
+            Console.Error.WriteLine("File not found: " + inputFile);
             return 1;
         }
 
-        byte[] data = File.ReadAllBytes(opts.InputFile);
+        byte[] data = File.ReadAllBytes(inputFile);
         if (!EncryptTool.LooksEncrypted(data))
         {
-            Console.Error.WriteLine("File is already decrypted: " + opts.InputFile);
+            Console.Error.WriteLine("File is already decrypted: " + inputFile);
             return 1;
         }
 
@@ -783,9 +908,9 @@ class Program
             }
 
             // Encrypt and overwrite
-            File.WriteAllBytes(opts.InputFile, EncryptTool.EncryptMult(modifiedData, EncryptTool.modEncryPassword));
+            File.WriteAllBytes(inputFile, EncryptTool.EncryptMult(modifiedData, EncryptTool.modEncryPassword));
 
-            Console.Error.WriteLine($"Updated file '{opts.InputFile}'");
+            Console.Error.WriteLine($"Updated file '{inputFile}'");
             return 0;
         }
         finally
@@ -858,80 +983,4 @@ class SaveUnpackMetadata
         public bool IsOriginalNameEncrypted { get; set; }
         public bool IsNameDecrypted { get; set; }
     }
-}
-
-
-[Verb("encrypt", HelpText = "Encrypt a single file or all files in a folder (in-place).")]
-class EncryptOptions
-{
-    [Value(0, MetaName = "path", Required = true, HelpText = "File or folder containing files.")]
-    public string Path { get; set; } = "";
-}
-
-[Verb("decrypt", HelpText = "Decrypt a single file or all files in a folder (in-place).")]
-class DecryptOptions
-{
-    [Value(0, MetaName = "path", Required = true, HelpText = "File or folder containing files.")]
-    public string Path { get; set; } = "";
-
-    [Option('i', "in-place", Required = false, HelpText = "Decrypt file in place. Output to stdout otherwise.")]
-    public bool Inplace { get; set; } = false;
-}
-
-[Verb("restore-excel", HelpText = "Decrypt json mod files (in-place), and for ModExportData.cache modify excelEncrypt=false.")]
-class RestoreExcelOptions
-{
-    [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
-    public string Folder { get; set; } = "";
-}
-
-[Verb("pack", HelpText = "Pack mod files, so that the mod can be loaded in-game.\nDon't try to pack mod made using the in-game mod creator, as ModData.cache is largely ignored except for `.modNamespace`.\nDlls and related assets from 'ModCode/ModMain/bin/Release/' gets copied over to 'ModCode/dll/'.")]
-class PackOptions
-{
-    [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
-    public string Folder { get; set; } = "";
-
-    [Option('o', "output", Required = false, HelpText = "Output folder. Defaults to input folder.")]
-    public string? OutputFolder { get; set; }
-}
-
-[Verb("unpack", HelpText = "Unpack mod files (in-place), so that the mod can be edited in the in-game mod editor.")]
-class UnpackOptions
-{
-    [Value(0, MetaName = "folder", Required = true, HelpText = "Folder containing mod files.")]
-    public string Folder { get; set; } = "";
-}
-
-[Verb("new", HelpText = "Create a new mod template folder.")]
-class NewModProjectOptions
-{
-    [Value(0, MetaName = "name", Required = true, HelpText = "Name of the mod (and folder).")]
-    public string Name { get; set; } = default!;
-}
-
-[Verb("edit", HelpText = "Edit encrypted file in default text editor (currently restricted to json files). Useful for editing 'ModExportData.cache'.")]
-class EditOptions
-{
-    [Value(0, Required = true, HelpText = "Path to the file.")]
-    public string InputFile { get; set; } = null!;
-}
-
-[Verb("save-pack", HelpText = "Compress and encrypt a single save file or all save files in a folder (in-place).")]
-class SavePackOptions
-{
-    [Value(0, MetaName = "path", Required = true, HelpText = "Save file or folder containing save files.")]
-    public string Path { get; set; } = "";
-
-    [Option('k', "keep-names", Required = false, HelpText = "Keep original filenames, do not encrypt them.")]
-    public bool KeepNames { get; set; } = false;
-}
-
-[Verb("save-unpack", HelpText = "Decompress and decrypt a single save file or all save files in a folder (in-place).")]
-class SaveUnpackOptions
-{
-    [Value(0, MetaName = "path", Required = true, HelpText = "Save file or folder containing save files.")]
-    public string Path { get; set; } = "";
-
-    [Option('k', "keep-names", Required = false, HelpText = "Keep original filenames, do not decrypt them.")]
-    public bool KeepNames { get; set; } = false;
 }
