@@ -21,19 +21,19 @@ class Program
 
     static int Main(string[] args)
     {
-        var argPath = new Argument<string>("path")
+        var argPath = new Argument<FileSystemInfo>("path")
         {
             Description = "File or folder containing files.",
-        };
-        var argModFolder = new Argument<string>("folder")
+        }.AcceptExistingOnly();
+        var argModFolder = new Argument<DirectoryInfo>("folder")
         {
             Description = "Folder containing mod files.",
-        };
+        }.AcceptExistingOnly();
 
         var argModName = new Argument<string>("name")
         {
             Description = "Name of the mod (and folder).",
-        };
+        }.AcceptLegalFileNamesOnly();
         var cmdNewMod = new Command(
             "new",
             "Create a new mod template folder."
@@ -44,10 +44,10 @@ class Program
         cmdNewMod.SetAction(parsed =>
             RunNewModProject(parsed.GetValue(argModName)!));
 
-        var argInputFile = new Argument<string>("file")
+        var argInputFile = new Argument<FileInfo>("file")
         {
             Description = "Path to the file.",
-        };
+        }.AcceptExistingOnly();
         var cmdEdit = new Command(
             "edit",
             "Edit encrypted file in default text editor (currently restricted to json files)."
@@ -94,11 +94,11 @@ class Program
         cmdRestoreExcel.SetAction(parsed =>
             RunRestoreExcel(parsed.GetValue(argModFolder)!));
 
-        var optPackOutput = new Option<string?>("--output")
+        var optPackOutput = new Option<DirectoryInfo?>("--output")
         {
             Description = "Output folder. Defaults to input folder.",
             Aliases = { "-o" },
-        };
+        }.AcceptLegalFilePathsOnly();
         var cmdPack = new Command(
             "pack",
             """
@@ -126,10 +126,10 @@ class Program
         cmdUnpack.SetAction(parsed =>
             RunUnpack(parsed.GetValue(argModFolder)!));
 
-        var argSavePath = new Argument<string>("path")
+        var argSavePath = new Argument<FileSystemInfo>("path")
         {
             Description = "Save file or folder containing save files.",
-        };
+        }.AcceptExistingOnly();
         var optNoEncryptFilenames = new Option<bool>("--keep-names")
         {
             Description = "Keep original filenames, do not encrypt them.",
@@ -189,11 +189,11 @@ class Program
         return cmdRoot.Parse(args).Invoke();
     }
 
-    static int RunEncrypt(string path)
+    static int RunEncrypt(FileSystemInfo path)
     {
-        if (Directory.Exists(path))
+        if (Directory.Exists(path.FullName))
         {
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(path.FullName, "*", SearchOption.AllDirectories))
             {
                 var data = File.ReadAllBytes(file);
                 if (EncryptTool.LooksEncrypted(data))
@@ -206,10 +206,10 @@ class Program
                 File.WriteAllBytes(file, encrypted);
             }
         }
-        else if (File.Exists(path))
+        else if (File.Exists(path.FullName))
         {
             var file = path;
-            var data = File.ReadAllBytes(file);
+            var data = File.ReadAllBytes(file.FullName);
             if (EncryptTool.LooksEncrypted(data))
             {
                 return 0;
@@ -217,7 +217,7 @@ class Program
 
             Console.Error.WriteLine($"Encrypting '{file}'");
             var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
-            File.WriteAllBytes(file, encrypted);
+            File.WriteAllBytes(file.FullName, encrypted);
         }
         else
         {
@@ -227,11 +227,11 @@ class Program
         return 0;
     }
 
-    static int RunDecrypt(string path, bool inplace)
+    static int RunDecrypt(FileSystemInfo path, bool inplace)
     {
-        if (Directory.Exists(path))
+        if (Directory.Exists(path.FullName))
         {
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(path.FullName, "*", SearchOption.AllDirectories))
             {
                 var data = File.ReadAllBytes(file);
                 if (!EncryptTool.LooksEncrypted(data))
@@ -244,9 +244,9 @@ class Program
                 File.WriteAllBytes(file, decrypted);
             }
         }
-        else if (File.Exists(path))
+        else if (File.Exists(path.FullName))
         {
-            var file = path;
+            var file = path.FullName;
             var data = File.ReadAllBytes(file);
             if (!EncryptTool.LooksEncrypted(data))
             {
@@ -275,7 +275,7 @@ class Program
     const string SAVE_UNPACK_META_FILENAME = "unpack_metadata.json";
 
     // For PC, on Android it's gzipped BinaryFormatter serialized objects instead
-    static int RunSaveUnpack(string path, bool keepNames)
+    static int RunSaveUnpack(FileSystemInfo path, bool keepNames)
     {
         var metadata = new SaveUnpackMetadata();
 
@@ -331,30 +331,30 @@ class Program
                 File.Delete(filePath);
                 File.WriteAllBytes(outFile, decompressed);
 
-                metadata.Files[Path.GetRelativePath(path, outFile)] = meta;
+                metadata.Files[Path.GetRelativePath(path.FullName, outFile)] = meta;
             }
             else
             {
                 Console.Error.WriteLine($"`{filePath}` isn't encrypted, skipped.");
-                metadata.Files[Path.GetRelativePath(path, filePath)] = meta;
+                metadata.Files[Path.GetRelativePath(path.FullName, filePath)] = meta;
             }
         }
 
-        if (Directory.Exists(path))
+        if (Directory.Exists(path.FullName))
         {
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(path.FullName, "*", SearchOption.AllDirectories))
             {
                 ProcessFile(file);
             }
 
-            var metaPath = Path.Combine(path, SAVE_UNPACK_META_FILENAME);
+            var metaPath = Path.Combine(path.FullName, SAVE_UNPACK_META_FILENAME);
             File.WriteAllText(metaPath, JsonSerializer.Serialize(
                 metadata,
                 PrettyJsonTypeInfo(SourceGenerationContext.Default.SaveUnpackMetadata)));
         }
-        else if (File.Exists(path))
+        else if (File.Exists(path.FullName))
         {
-            ProcessFile(path);
+            ProcessFile(path.FullName);
         }
         else
         {
@@ -365,7 +365,7 @@ class Program
         return 0;
     }
 
-    static int RunSavePack(string path, bool keepNames)
+    static int RunSavePack(FileSystemInfo path, bool keepNames)
     {
         byte[] Compress(byte[] input)
         {
@@ -413,9 +413,9 @@ class Program
             File.WriteAllBytes(outFile, encrypted);
         }
 
-        if (Directory.Exists(path))
+        if (Directory.Exists(path.FullName))
         {
-            var metaPath = Path.Combine(path, SAVE_UNPACK_META_FILENAME);
+            var metaPath = Path.Combine(path.FullName, SAVE_UNPACK_META_FILENAME);
             if (!File.Exists(metaPath))
             {
                 Console.Error.WriteLine("Metadata file not found. Run save-unpack first.");
@@ -429,7 +429,7 @@ class Program
             {
                 var relPath = kv.Key;
                 var meta = kv.Value;
-                var filePath = Path.Combine(path, relPath);
+                var filePath = Path.Combine(path.FullName, relPath);
 
                 ProcessFile(filePath, meta);
             }
@@ -437,9 +437,9 @@ class Program
             Console.Error.WriteLine("Pack complete, removing metadata file...");
             File.Delete(metaPath);
         }
-        else if (File.Exists(path))
+        else if (File.Exists(path.FullName))
         {
-            ProcessFile(path);
+            ProcessFile(path.FullName);
         }
         else
         {
@@ -450,9 +450,9 @@ class Program
         return 0;
     }
 
-    static int RunRestoreExcel(string folder)
+    static int RunRestoreExcel(DirectoryInfo folder)
     {
-        var root = folder;
+        var root = folder.FullName;
 
         byte[] data;
 
@@ -510,7 +510,7 @@ class Program
         return 0;
     }
 
-    static int RunPack(string folder, string? outputFolder)
+    static int RunPack(DirectoryInfo folder, DirectoryInfo? outputFolder)
     {
         static void SetupOutputModFolder(string input, string output, string? modNamespace)
         {
@@ -583,8 +583,8 @@ class Program
 
         }
 
-        var root = folder;
-        var outRoot = outputFolder ?? root;
+        var root = folder.FullName;
+        var outRoot = outputFolder?.FullName ?? root;
         var projPath = Path.Combine(root, "ModProject.cache");
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
@@ -700,10 +700,10 @@ class Program
         return 0;
     }
 
-    static int RunUnpack(string folder)
+    static int RunUnpack(DirectoryInfo folder)
     {
         // TODO: Add an option for separate output folder
-        var root = folder;
+        var root = folder.FullName;
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
         if (!File.Exists(exportPath))
@@ -825,7 +825,7 @@ class Program
         return 0;
     }
 
-    static int RunEdit(string inputFile)
+    static int RunEdit(FileInfo inputFile)
     {
         static string GetEditor()
         {
@@ -843,13 +843,13 @@ class Program
             return "vi"; // Linux default
         }
 
-        if (!File.Exists(inputFile))
+        if (!inputFile.Exists)
         {
             Console.Error.WriteLine("File not found: " + inputFile);
             return 1;
         }
 
-        byte[] data = File.ReadAllBytes(inputFile);
+        byte[] data = File.ReadAllBytes(inputFile.FullName);
         if (!EncryptTool.LooksEncrypted(data))
         {
             Console.Error.WriteLine("File is already decrypted: " + inputFile);
@@ -913,7 +913,7 @@ class Program
             }
 
             // Encrypt and overwrite
-            File.WriteAllBytes(inputFile, EncryptTool.EncryptMult(modifiedData, EncryptTool.modEncryPassword));
+            File.WriteAllBytes(inputFile.FullName, EncryptTool.EncryptMult(modifiedData, EncryptTool.modEncryPassword));
 
             Console.Error.WriteLine($"Updated file '{inputFile}'");
             return 0;
