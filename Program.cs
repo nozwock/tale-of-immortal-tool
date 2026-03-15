@@ -7,6 +7,8 @@ using CommandLine;
 using CommandLine.Text;
 using ICSharpCode.SharpZipLib.GZip;
 
+namespace TOITool;
+
 class Program
 {
     static readonly JsonSerializerOptions jsonPrettySerializerOptions = new()
@@ -639,7 +641,7 @@ class Program
         static string GenerateSoleId()
         {
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string(Enumerable.Range(0, 6).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
+            return new string([.. Enumerable.Range(0, 6).Select(_ => chars[Random.Shared.Next(chars.Length)])]);
         }
 
         // Generate IDs

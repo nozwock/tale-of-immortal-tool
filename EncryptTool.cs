@@ -1,8 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
+
+namespace TOITool;
 
 public static class EncryptTool
 {
@@ -17,7 +16,7 @@ public static class EncryptTool
     public const string cacheEncryPassword = "5:.A%KL;,.?<aH._=-/DF4s";
 
     // This is the header that's prepended to an encrypted file
-    private static readonly byte[] validationKeyXor3 = Encoding.UTF8.GetBytes(validationKey).Select(b => (byte)(b ^ 3)).ToArray();
+    private static readonly byte[] validationKeyXor3 = [.. Encoding.UTF8.GetBytes(validationKey).Select(b => (byte)(b ^ 3))];
 
     public static bool LooksEncrypted(ReadOnlySpan<byte> bytes)
     {
@@ -97,18 +96,17 @@ public static class EncryptTool
 
     private static byte[] ProcessDES(byte[] data, string key, bool encrypt)
     {
-        using var des = System.Security.Cryptography.DES.Create();
+        using var des = DES.Create();
         // Key derivation exactly as in IL: MD5(key), first 8 -> Key, next 8 -> IV
-        using var md5 = System.Security.Cryptography.MD5.Create();
-        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key));
-        des.Key = hash.Take(8).ToArray();
-        des.IV = hash.Skip(8).Take(8).ToArray();
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(key));
+        des.Key = [.. hash.Take(8)];
+        des.IV = [.. hash.Skip(8).Take(8)];
 
         using var ms = new MemoryStream();
-        using (var cs = new System.Security.Cryptography.CryptoStream(
+        using (var cs = new CryptoStream(
             ms,
             encrypt ? des.CreateEncryptor() : des.CreateDecryptor(),
-            System.Security.Cryptography.CryptoStreamMode.Write))
+            CryptoStreamMode.Write))
         {
             cs.Write(data, 0, data.Length);
             cs.FlushFinalBlock();
