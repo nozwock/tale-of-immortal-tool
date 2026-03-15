@@ -1,8 +1,11 @@
+using System.Buffers;
 using System.CommandLine;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using ICSharpCode.SharpZipLib.GZip;
 
@@ -317,7 +320,7 @@ class Program
                 try
                 {
                     using var doc = JsonDocument.Parse(decompressed);
-                    decompressed = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(doc.RootElement, jsonPrettySerializerOptions));
+                    decompressed = Encoding.UTF8.GetBytes(PrettyJsonSerialize(doc.RootElement));
                 }
                 catch { }
 
@@ -345,7 +348,9 @@ class Program
             }
 
             var metaPath = Path.Combine(path, SAVE_UNPACK_META_FILENAME);
-            File.WriteAllText(metaPath, JsonSerializer.Serialize(metadata, jsonPrettySerializerOptions));
+            File.WriteAllText(metaPath, JsonSerializer.Serialize(
+                metadata,
+                PrettyJsonTypeInfo(SourceGenerationContext.Default.SaveUnpackMetadata)));
         }
         else if (File.Exists(path))
         {
@@ -389,7 +394,7 @@ class Program
             try
             {
                 using var doc = JsonDocument.Parse(bytes);
-                bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(doc.RootElement));
+                bytes = Encoding.UTF8.GetBytes(PrettyJsonSerialize(doc.RootElement));
             }
             catch { }
 
@@ -416,7 +421,9 @@ class Program
                 Console.Error.WriteLine("Metadata file not found. Run save-unpack first.");
                 return 1;
             }
-            var metadata = JsonSerializer.Deserialize<SaveUnpackMetadata>(File.ReadAllText(metaPath))!;
+            var metadata = JsonSerializer.Deserialize(
+                File.ReadAllBytes(metaPath),
+                SourceGenerationContext.Default.SaveUnpackMetadata)!;
 
             foreach (var kv in metadata.Files)
             {
@@ -461,7 +468,7 @@ class Program
                 Console.Error.WriteLine($"Disabling excelEncrypt in '{exportPath}'");
                 json["projectData"]!["excelEncrypt"] = false;
 
-                var modified = Encoding.UTF8.GetBytes(json.ToJsonString(jsonPrettySerializerOptions));
+                var modified = Encoding.UTF8.GetBytes(PrettyJsonSerialize(json));
                 File.WriteAllBytes(exportPath, EncryptTool.EncryptMult(modified, EncryptTool.modEncryPassword));
             }
             else
@@ -637,7 +644,7 @@ class Program
         Console.Error.WriteLine("Writing 'ModExportData.cache'");
 
         var exportJsonBytes = Encoding.UTF8.GetBytes(
-            exportRoot.ToJsonString(jsonPrettySerializerOptions)
+            PrettyJsonSerialize(exportRoot)
         );
         var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
         File.WriteAllBytes(exportPath, exportEncrypted);
@@ -735,7 +742,7 @@ class Program
                 var filePath = Path.Combine(jsonDir, filename + ".json");
                 Console.Error.WriteLine($"Unpacking ModExportData's {filename} to `{filePath}`");
                 File.WriteAllText(filePath,
-                    data!.ToJsonString(jsonPrettySerializerOptions),
+                    PrettyJsonSerialize(data),
                     Encoding.UTF8
                 );
             }
@@ -744,14 +751,14 @@ class Program
         // Write ModProject.cache
         var projPath = Path.Combine(root, "ModProject.cache");
         File.WriteAllText(projPath,
-            projectData.ToJsonString(jsonPrettySerializerOptions),
+            PrettyJsonSerialize(projectData),
             Encoding.UTF8);
 
         var soleId = projectData["soleID"]?.GetValue<string>();
         var modData = NewModDataCache(soleId);
         var modDataPath = Path.Combine(root, "ModData.cache");
         File.WriteAllText(modDataPath,
-            modData.ToJsonString(jsonPrettySerializerOptions),
+            PrettyJsonSerialize(modData),
             Encoding.UTF8);
 
         // Delete ModExportData.cache
@@ -788,8 +795,7 @@ class Program
         // ModData.cache
         var modData = NewModDataCache(soleId);
 
-        File.WriteAllText(Path.Combine(root, "ModData.cache"),
-            JsonSerializer.Serialize(modData, jsonPrettySerializerOptions));
+        File.WriteAllText(Path.Combine(root, "ModData.cache"), PrettyJsonSerialize(modData));
 
         // ModProject.cache
         var modProject = new JsonObject
@@ -813,8 +819,7 @@ class Program
             ["excelEncrypt"] = false
         };
 
-        File.WriteAllText(Path.Combine(root, "ModProject.cache"),
-            JsonSerializer.Serialize(modProject, jsonPrettySerializerOptions));
+        File.WriteAllText(Path.Combine(root, "ModProject.cache"), PrettyJsonSerialize(modProject));
 
         Console.Error.WriteLine($"New mod template created at '{root}'");
         return 0;
@@ -858,7 +863,7 @@ class Program
         try
         {
             var doc = JsonDocument.Parse(decryptedText);
-            formattedJson = JsonSerializer.Serialize(doc.RootElement, jsonPrettySerializerOptions);
+            formattedJson = PrettyJsonSerialize(doc.RootElement);
         }
         catch (Exception ex)
         {
@@ -971,6 +976,30 @@ class Program
                         .Where(file =>
                                  re.IsMatch(Path.GetFileName(file)));
     }
+
+    static string PrettyJsonSerialize(JsonNode? node)
+    {
+        return node?.ToJsonString(jsonPrettySerializerOptions) ?? "null";
+    }
+
+    static string PrettyJsonSerialize(JsonElement element)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions
+        {
+            Indented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        });
+        element.WriteTo(writer);
+        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
+
+    static JsonTypeInfo<T> PrettyJsonTypeInfo<T>(JsonTypeInfo<T> typeInfo)
+    {
+        typeInfo.Options.WriteIndented = true;
+        typeInfo.Options.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+        return typeInfo;
+    }
 }
 
 class SaveUnpackMetadata
@@ -984,3 +1013,6 @@ class SaveUnpackMetadata
         public bool IsNameDecrypted { get; set; }
     }
 }
+
+[JsonSerializable(typeof(SaveUnpackMetadata))]
+internal partial class SourceGenerationContext : JsonSerializerContext { }
