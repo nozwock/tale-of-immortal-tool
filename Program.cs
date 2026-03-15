@@ -85,8 +85,8 @@ class Program
                 parsed.GetValue(optDecryptInplace)));
 
         var cmdRestoreExcel = new Command(
-            "restore-excel",
-            "Decrypt json mod files (in-place), and set excelEncrypt=false for ModExportData.cache."
+            "restore",
+            "Decrypt .json mod files (in-place), and set `excelEncrypt=false` in `ModExportData.cache`."
         )
         {
             argModFolder
