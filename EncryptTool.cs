@@ -7,15 +7,17 @@ using System.Text;
 public static class EncryptTool
 {
     public const string validationKey = "2a;ad.,&fSf^SX.,:12@D";
+
     // GameConf.modEncryPassword
     // Used for mod files
     public const string modEncryPassword = ",.?<aH.5:.L;_=-A%K/DF4s";
+
     // GameConf.cacheEncryPassword
     // Used for save files
     public const string cacheEncryPassword = "5:.A%KL;,.?<aH._=-/DF4s";
 
     // This is the header that's prepended to an encrypted file
-    private static byte[] validationKeyXor3 => Encoding.UTF8.GetBytes(validationKey).Select(b => (byte)(b ^ 3)).ToArray();
+    private static readonly byte[] validationKeyXor3 = Encoding.UTF8.GetBytes(validationKey).Select(b => (byte)(b ^ 3)).ToArray();
 
     public static bool LooksEncrypted(ReadOnlySpan<byte> bytes)
     {
