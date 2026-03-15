@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  platform-binary:
+    name: Build binaries for ${{ matrix.target }}
+    if: github.ref_type == 'tag'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        kind: ["linux", "windows", "macOS"]
+        include:
+          - kind: linux
+            target: linux-x64
+            os: ubuntu-latest
+          - kind: windows
+            target: win-x64
+            os: windows-latest
+          - kind: macOS
+            target: osx-x64
+            os: macos-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10"
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $csproj = Get-ChildItem -Path . -Filter *.csproj -File | Select-Object -First 1
+          if (-not $csproj) {
+            throw "No .csproj file found in repository root"
+          }
+
+          [xml]$projXml = Get-Content $csproj.FullName
+          $appName = $projXml.Project.PropertyGroup.AssemblyName | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($appName)) {
+            $appName = [System.IO.Path]::GetFileNameWithoutExtension($csproj.Name)
+          }
+
+          $target = "${{ matrix.target }}"
+          $tag = "${{ github.ref_name }}"
+          $releaseName = "$appName-$tag-$target"
+
+          dotnet publish $csproj.FullName `
+            -c Release `
+            -r $target `
+            -o $releaseName
+
+          $outDir = "./dist/"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          if ($target -eq "win-x64") {
+            7z a -tzip "$outDir/$releaseName.zip" "./$releaseName"
+          } else {
+            tar -czvf "$outDir/$releaseName.tar.gz" "./$releaseName"
+          }
+
+          Remove-Item -Recurse -Force $releaseName
+
+          "APP_NAME=$appName" >> $env:GITHUB_ENV
+          "OUT_DIR=$outDir" >> $env:GITHUB_ENV
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ env.APP_NAME }} ${{ github.ref_name }}"
+          files: "${{ env.OUT_DIR }}/*"
+
+  nupkg:
+    name: Build NuGet Package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10"
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $csproj = Get-ChildItem -Path . -Filter *.csproj -File | Select-Object -First 1
+          if (-not $csproj) {
+            throw "No .csproj file found in repository root"
+          }
+
+          dotnet pack $csproj.FullName `
+          -c Release `
+          -o "./dist/" `
+          -p:EnableInstallers=false `
+          -p:PublishSelfContained=false `
+          -p:PublishSingleFile=false `
+          -p:PublishTrimmed=false `
+          -p:PublishReadyToRun=false `
+          -p:PublishAOT=false
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "./dist/*"
