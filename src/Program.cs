@@ -30,6 +30,20 @@ class Program
             Description = "Folder containing mod files.",
         }.AcceptExistingOnly();
 
+        var optIgnoreGlobs = new Option<List<string>>("--glob")
+        {
+            Description = "Ignore globset, gitignore style.",
+            Aliases = { "-g" },
+        };
+        var optIgnoreFiles = new Option<List<FileInfo>>("--ignore-file")
+        {
+            Description = "Path to additional ignore files. Higher priortiy than default ignore files.",
+        }.AcceptExistingOnly();
+        var optNoIgnoreFile = new Option<bool>("--no-ignore")
+        {
+            Description = "Don't ignore files based on the default .ignore and .gitignore exclude patterns.",
+        };
+
         var argModName = new Argument<string>("name")
         {
             Description = "Name of the mod (and folder).",
@@ -109,12 +123,19 @@ class Program
         )
         {
             argModFolder,
-            optPackOutput
+            optPackOutput,
+            optIgnoreGlobs,
+            optIgnoreFiles,
+            optNoIgnoreFile,
         };
         cmdPack.SetAction(parsed =>
             RunPack(
                 parsed.GetValue(argModFolder)!,
-                parsed.GetValue(optPackOutput)));
+                parsed.GetValue(optPackOutput),
+                ExtendGlobsWithIgnoreFiles(
+                    parsed.GetValue(optIgnoreGlobs)!,
+                    parsed.GetValue(optIgnoreFiles)!),
+                parsed.GetValue(optNoIgnoreFile)));
 
         var cmdUnpack = new Command(
             "unpack",
@@ -190,6 +211,22 @@ class Program
         };
 
         return cmdRoot.Parse(args).Invoke();
+    }
+
+    static List<string> ExtendGlobsWithIgnoreFiles(List<string> globs, IReadOnlyList<FileInfo> files)
+    {
+        static List<string> ReadLines(IReadOnlyList<FileInfo> files)
+        {
+            var lines = new List<string>();
+            foreach (var file in files)
+            {
+                lines.AddRange(File.ReadLines(file.FullName));
+            }
+            return lines;
+        }
+
+        globs.AddRange(ReadLines(files));
+        return globs;
     }
 
     static int RunEncrypt(FileSystemInfo path)
@@ -513,9 +550,18 @@ class Program
         return 0;
     }
 
-    static int RunPack(DirectoryInfo folder, DirectoryInfo? outputFolder)
+    static int RunPack(
+        DirectoryInfo folder,
+        DirectoryInfo? outputFolder,
+        List<string> ignoreGlobs,
+        bool noIgnoreFiles = false)
     {
-        static void SetupOutputModFolder(string input, string output, string? modNamespace)
+        static void SetupOutputModFolder(
+            string input,
+            string output,
+            string? modNamespace,
+            List<string> ignoreGlobs,
+            bool noIgnoreFiles)
         {
             // Copy compiled ModCode Release artifacts
             if (modNamespace != null)
@@ -560,7 +606,10 @@ class Program
 
             Directory.CreateDirectory(output);
 
-            foreach (var srcPath in Directory.EnumerateFileSystemEntries(input, "*", SearchOption.AllDirectories))
+            foreach (var srcPath in new IgnoreWalk(
+                [input],
+                Overrides: ignoreGlobs,
+                UseIgnoreFiles: !noIgnoreFiles).Enumerate())
             {
                 var relPath = Path.GetRelativePath(input, srcPath);
                 var targetPath = Path.Combine(output, relPath);
@@ -583,7 +632,6 @@ class Program
                     File.Copy(srcPath, targetPath, true);
                 }
             }
-
         }
 
         var root = folder.FullName;
@@ -638,7 +686,7 @@ class Program
 
         Console.Error.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
         var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>();
-        SetupOutputModFolder(root, outRoot, modNamespace);
+        SetupOutputModFolder(root, outRoot, modNamespace, ignoreGlobs, noIgnoreFiles);
         root = outRoot; // Operating in output folder now
         projPath = Path.Combine(root, "ModProject.cache");
         modDataPath = Path.Combine(root, "ModData.cache");
