@@ -30,6 +30,11 @@ class Program
             Description = "Folder containing mod files.",
         }.AcceptExistingOnly();
 
+        var optCleanOutput = new Option<bool>("--clean")
+        {
+            Description = "Recursively delete output directory if it exists before writing anything to it.",
+        };
+
         var optIgnoreGlobs = new Option<List<string>>("--glob")
         {
             Description = "Ignore globset, gitignore style.",
@@ -124,6 +129,7 @@ class Program
         {
             argModFolder,
             optPackOutput,
+            optCleanOutput,
             optIgnoreGlobs,
             optIgnoreFiles,
             optNoIgnoreFile,
@@ -135,7 +141,8 @@ class Program
                 ExtendGlobsWithIgnoreFiles(
                     parsed.GetValue(optIgnoreGlobs)!,
                     parsed.GetValue(optIgnoreFiles)!),
-                parsed.GetValue(optNoIgnoreFile)));
+                parsed.GetValue(optNoIgnoreFile),
+                parsed.GetValue(optCleanOutput)));
 
         var cmdUnpack = new Command(
             "unpack",
@@ -554,7 +561,8 @@ class Program
         DirectoryInfo folder,
         DirectoryInfo? outputFolder,
         List<string> ignoreGlobs,
-        bool noIgnoreFiles = false)
+        bool noIgnoreFiles = false,
+        bool cleanOutput = false)
     {
         static void SetupOutputModFolder(
             string input,
@@ -685,6 +693,11 @@ class Program
         exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? (soleId != null ? $"MOD_{soleId}" : null);
 
         Console.Error.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
+        if (cleanOutput && Directory.Exists(outRoot))
+        {
+            Console.Error.WriteLine($"Clean output mode: Deleting output folder first...");
+            Directory.Delete(outRoot, recursive: true);
+        }
         var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>();
         SetupOutputModFolder(root, outRoot, modNamespace, ignoreGlobs, noIgnoreFiles);
         root = outRoot; // Operating in output folder now
