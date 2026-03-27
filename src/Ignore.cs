@@ -6,7 +6,9 @@ public record class IgnoreWalk(
     IReadOnlyList<string> Paths,
     IReadOnlyList<string>? Extensions = null,
     IReadOnlyList<string>? Overrides = null,
-    string? CurrentDir = null,
+    // CurrentDir was to be used for gitignore `/` root path patterns but since Ignore package doesn't support this,
+    // it's pointless
+    // string? CurrentDir = null,
     bool CaseInsensitive = true,
     bool IgnoreHidden = true,
     bool UseIgnoreFiles = true,
@@ -17,7 +19,8 @@ public record class IgnoreWalk(
 
     public IEnumerable<string> Enumerate()
     {
-        var cwd = CurrentDir ?? Directory.GetCurrentDirectory();
+        // var cwd = CurrentDir ?? Directory.GetCurrentDirectory();
+        var cwd = Directory.GetCurrentDirectory();
 
         if (Overrides != null)
         {
@@ -32,7 +35,7 @@ public record class IgnoreWalk(
 
         foreach (var root in Paths)
         {
-            var fullRoot = Path.GetFullPath(Path.Combine(cwd, root));
+            var fullRoot = Path.GetFullPath(root);
 
             foreach (var entry in Walk(fullRoot, fullRoot, ignore))
                 yield return entry;
