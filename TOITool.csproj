@@ -23,6 +23,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Ignore" Version="0.2.1" />
     <PackageReference Include="System.CommandLine" Version="2.0.5" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
   </ItemGroup>
