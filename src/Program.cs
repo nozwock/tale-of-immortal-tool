@@ -1098,12 +1098,15 @@ partial class Program
     static string PrettyJsonSerialize(JsonElement element)
     {
         var buffer = new ArrayBufferWriter<byte>();
-        using var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions
+        var options = new JsonWriterOptions
         {
             Indented = true,
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        });
-        element.WriteTo(writer);
+        };
+        using (var writer = new Utf8JsonWriter(buffer, options))
+        {
+            element.WriteTo(writer);
+        }
         return Encoding.UTF8.GetString(buffer.WrittenSpan);
     }
 
