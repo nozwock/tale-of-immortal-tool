@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TOITool;
+namespace TaleOfImmortalTool;
 
 public static class EncryptTool
 {

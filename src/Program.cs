@@ -9,7 +9,7 @@ using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using ICSharpCode.SharpZipLib.GZip;
 
-namespace TOITool;
+namespace TaleOfImmortalTool;
 
 partial class Program
 {

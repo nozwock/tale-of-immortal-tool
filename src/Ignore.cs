@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace TOITool;
+namespace TaleOfImmortalTool;
 
 public record class IgnoreWalk(
     IReadOnlyList<string> Paths,

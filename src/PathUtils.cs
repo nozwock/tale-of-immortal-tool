@@ -1,4 +1,4 @@
-namespace TOITool;
+namespace TaleOfImmortalTool;
 
 public static class PathUtils
 {
