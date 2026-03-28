@@ -941,7 +941,7 @@ partial class Program
             ["createTicks"] = createTicks,
             ["name"] = $"Mod {soleId} {name}",
             ["author"] = "unknown",
-            ["desc"] = $"Creation Time {DateTime.Now:yyyy_MM_dd_HH_mm_ss}",
+            ["desc"] = "",
             ["ver"] = "1.0.0",
             ["autoSave"] = true,
             ["isCreateNPC"] = true,
