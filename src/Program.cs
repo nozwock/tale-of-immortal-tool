@@ -115,12 +115,12 @@ partial class Program
         cmdRestoreExcel.SetAction(parsed =>
             RunRestoreExcel(parsed.GetValue(argModFolder)!));
 
-        var optPackOutput = new Option<DirectoryInfo?>("--output")
+        var optPackOutput = new Option<DirectoryInfo>("--output")
         {
             Description = "Output folder. Defaults to input folder.",
             Aliases = { "-o" },
         }.AcceptLegalFilePathsOnly();
-        var optPackOutputFormat = new Option<string?>("--output-format")
+        var optPackOutputFormat = new Option<string>("--output-format")
         {
             Description = """
             Output folder name format. Only used when --output is specified.
@@ -158,6 +158,7 @@ partial class Program
                 outputFolder: parsed.GetValue(optPackOutput),
                 outputFormat: parsed.GetValue(optPackOutputFormat)!,
                 ignoreGlobs: ExtendGlobsWithIgnoreFiles(
+                    // CommandLine.Option<List<T>> gives List<T> instead of null if option wasn't specified
                     parsed.GetValue(optIgnoreGlobs)!,
                     parsed.GetValue(optIgnoreFiles)!),
                 noIgnoreFiles: parsed.GetValue(optNoIgnoreFile),
