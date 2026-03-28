@@ -11,8 +11,10 @@ using ICSharpCode.SharpZipLib.GZip;
 
 namespace TOITool;
 
-class Program
+partial class Program
 {
+    static readonly string packOutputNameTemplate = "Mod_{{SoleId}}_{{FolderName}}";
+
     static readonly JsonSerializerOptions jsonPrettySerializerOptions = new()
     {
         WriteIndented = true,
@@ -118,6 +120,11 @@ class Program
             Description = "Output folder. Defaults to input folder.",
             Aliases = { "-o" },
         }.AcceptLegalFilePathsOnly();
+        var optPackOutputFormat = new Option<string?>("--output-format")
+        {
+            Description = "Output folder name format. Set it to empty string to disable formatting.",
+            DefaultValueFactory = _ => packOutputNameTemplate,
+        };
         var cmdPack = new Command(
             "pack",
             """
@@ -133,16 +140,19 @@ class Program
             optIgnoreGlobs,
             optIgnoreFiles,
             optNoIgnoreFile,
+            optPackOutputFormat,
         };
+        // TODO: README file's contents in modexportdata's description
         cmdPack.SetAction(parsed =>
             RunPack(
-                parsed.GetValue(argModFolder)!,
-                parsed.GetValue(optPackOutput),
-                ExtendGlobsWithIgnoreFiles(
+                folder: parsed.GetValue(argModFolder)!,
+                outputFolder: parsed.GetValue(optPackOutput),
+                outputFormat: parsed.GetValue(optPackOutputFormat)!,
+                ignoreGlobs: ExtendGlobsWithIgnoreFiles(
                     parsed.GetValue(optIgnoreGlobs)!,
                     parsed.GetValue(optIgnoreFiles)!),
-                parsed.GetValue(optNoIgnoreFile),
-                parsed.GetValue(optCleanOutput)));
+                noIgnoreFiles: parsed.GetValue(optNoIgnoreFile),
+                cleanOutput: parsed.GetValue(optCleanOutput)));
 
         var cmdUnpack = new Command(
             "unpack",
@@ -560,6 +570,7 @@ class Program
     static int RunPack(
         DirectoryInfo folder,
         DirectoryInfo? outputFolder,
+        string outputFormat,
         List<string> ignoreGlobs,
         bool noIgnoreFiles = false,
         bool cleanOutput = false)
@@ -643,7 +654,6 @@ class Program
         }
 
         var root = folder.FullName;
-        var outRoot = outputFolder?.FullName ?? root;
         var projPath = Path.Combine(root, "ModProject.cache");
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
@@ -683,6 +693,12 @@ class Program
             throw new FileNotFoundException("Missing required ModProject.cache in root folder.", projPath);
         }
 
+        if (string.IsNullOrWhiteSpace(soleId))
+        {
+            Console.Error.WriteLine("Cannot find soleID in mod's metadata.");
+            return 1;
+        }
+
         var modDataPath = Path.Combine(root, "ModData.cache");
         if (File.Exists(modDataPath))
         {
@@ -690,7 +706,28 @@ class Program
             // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
             exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? modDataRoot["modNamespace"]?.GetValue<string?>();
         }
-        exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? (soleId != null ? $"MOD_{soleId}" : null);
+        exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? $"MOD_{soleId}";
+
+        var outRoot = outputFolder?.FullName ?? root;
+        if (!string.IsNullOrWhiteSpace(outputFormat))
+        {
+            var outName = PathUtils.GetBaseName(outRoot);
+
+            var placeholderValues = new Dictionary<string, string>
+            {
+                ["SoleId"] = soleId,
+                ["FolderName"] = outName,
+            };
+            var outFormattedName = RegexTextPlaceholder.Replace(outputFormat, match =>
+            {
+                var key = match.Groups["placeholder"].Value;
+                return placeholderValues.TryGetValue(key, out var value) ? value : match.Value;
+            });
+            if (!string.IsNullOrWhiteSpace(outFormattedName))
+                outName = outFormattedName;
+
+            outRoot = PathUtils.WithBaseName(outRoot, outName);
+        }
 
         Console.Error.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
         if (cleanOutput && Directory.Exists(outRoot))
@@ -1064,6 +1101,9 @@ class Program
         typeInfo.Options.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
         return typeInfo;
     }
+
+    [GeneratedRegex(@"\{\{\s*(?<placeholder>\w+)\s*\}\}", RegexOptions.Compiled)]
+    static partial Regex RegexTextPlaceholder { get; }
 }
 
 class SaveUnpackMetadata
