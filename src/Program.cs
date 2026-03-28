@@ -122,7 +122,10 @@ partial class Program
         }.AcceptLegalFilePathsOnly();
         var optPackOutputFormat = new Option<string?>("--output-format")
         {
-            Description = "Output folder name format. Set it to empty string to disable formatting.",
+            Description = """
+            Output folder name format. Only used when --output is specified.
+            Set it to empty string to disable formatting.
+            """,
             DefaultValueFactory = _ => packOutputNameTemplate,
         };
         var cmdPack = new Command(
@@ -710,7 +713,7 @@ partial class Program
         exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? $"MOD_{soleId}";
 
         var outRoot = outputFolder?.FullName ?? root;
-        if (!string.IsNullOrWhiteSpace(outputFormat))
+        if (outputFolder != null && !string.IsNullOrWhiteSpace(outputFormat))
         {
             var outName = PathUtils.GetBaseName(outRoot);
 
