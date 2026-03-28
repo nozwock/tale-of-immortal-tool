@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace TaleOfImmortalTool;
 
 public record class IgnoreWalk(
@@ -123,7 +121,7 @@ public record class IgnoreWalk(
 
             var relForMatch = Path.GetRelativePath(root, entry);
             relForMatch = CaseInsensitive ? relForMatch.ToLowerInvariant() : relForMatch;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (OperatingSystem.IsWindows())
                 // Normalizing since IsIgnored treats / and \ differently
                 // https://github.com/jellyfin/jellyfin/issues/15484
                 // https://github.com/goelhardik/ignore/issues/51
@@ -166,7 +164,7 @@ public record class IgnoreWalk(
 
     private static bool IsHidden(string path, FileAttributes attr)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (OperatingSystem.IsWindows())
         {
             return attr.HasFlag(FileAttributes.Hidden);
         }
