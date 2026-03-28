@@ -733,7 +733,7 @@ partial class Program
                 && File.Exists(readmePathDefault)))
         {
             var readmeText = File.ReadAllText(readmePath).ReplaceLineEndings("\n");
-            exportRoot["projectData"]!["desc"] = readmeText;
+            exportRoot["projectData"]!["desc"] = "\n" + readmeText;
         }
 
         var outRoot = outputFolder?.FullName ?? root;
