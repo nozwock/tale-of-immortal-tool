@@ -144,7 +144,7 @@ partial class Program
         };
         // TODO: README file's contents in modexportdata's description
         cmdPack.SetAction(parsed =>
-            RunPack(
+            RunModPack(
                 folder: parsed.GetValue(argModFolder)!,
                 outputFolder: parsed.GetValue(optPackOutput),
                 outputFormat: parsed.GetValue(optPackOutputFormat)!,
@@ -162,7 +162,7 @@ partial class Program
             argModFolder
         };
         cmdUnpack.SetAction(parsed =>
-            RunUnpack(parsed.GetValue(argModFolder)!));
+            RunModUnpack(parsed.GetValue(argModFolder)!));
 
         var cmdMod = new Command("mod", "Mod files packing and unpacking.")
         {
@@ -567,7 +567,7 @@ partial class Program
         return 0;
     }
 
-    static int RunPack(
+    static int RunModPack(
         DirectoryInfo folder,
         DirectoryInfo? outputFolder,
         string outputFormat,
@@ -802,7 +802,7 @@ partial class Program
         return 0;
     }
 
-    static int RunUnpack(DirectoryInfo folder)
+    static int RunModUnpack(DirectoryInfo folder)
     {
         // TODO: Add an option for separate output folder
         var root = folder.FullName;
