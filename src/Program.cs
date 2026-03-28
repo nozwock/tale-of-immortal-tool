@@ -929,6 +929,8 @@ partial class Program
         Directory.CreateDirectory(Path.Combine(root, "ModCode", "ModMain"));
         Directory.CreateDirectory(Path.Combine(root, "ModExcel"));
 
+        File.WriteAllText(Path.Combine(root, "README.md"), $"# {name}");
+
         // ModData.cache
         var modData = NewModDataCache(soleId);
 
