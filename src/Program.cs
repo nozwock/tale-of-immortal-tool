@@ -13,7 +13,7 @@ namespace TaleOfImmortalTool;
 
 partial class Program
 {
-    static readonly string packOutputNameTemplate = "Mod_{{SoleId}}_{{FolderName}}";
+    const string packOutputNameTemplate = "Mod_{{SoleId}}_{{FolderName}}";
 
     static readonly JsonSerializerOptions jsonPrettySerializerOptions = new()
     {
@@ -581,10 +581,10 @@ partial class Program
     static int RunModPack(
         DirectoryInfo folder,
         DirectoryInfo? outputFolder,
-        string outputFormat,
         List<string> ignoreGlobs,
         bool noIgnoreFiles = false,
         bool cleanOutput = false,
+        string outputFormat = packOutputNameTemplate,
         FileInfo? readmeFile = null)
     {
         static void SetupOutputModFolder(
