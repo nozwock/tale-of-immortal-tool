@@ -128,6 +128,12 @@ partial class Program
             """,
             DefaultValueFactory = _ => packOutputNameTemplate,
         };
+        var optPackUseReadme = new Option<FileInfo>("--readme")
+        {
+            Description = "Use a file's contents as description in the mod's cooked metadata.\n"
+            + "Uses README.md from input folder by default if `desc` field is either empty or "
+            + "doesn't exist in `ModProject.cache` or `ModExportData.cache`.",
+        }.AcceptExistingOnly();
         var cmdPack = new Command(
             "pack",
             """
@@ -144,8 +150,8 @@ partial class Program
             optIgnoreFiles,
             optNoIgnoreFile,
             optPackOutputFormat,
+            optPackUseReadme,
         };
-        // TODO: README file's contents in modexportdata's description
         cmdPack.SetAction(parsed =>
             RunModPack(
                 folder: parsed.GetValue(argModFolder)!,
@@ -155,7 +161,8 @@ partial class Program
                     parsed.GetValue(optIgnoreGlobs)!,
                     parsed.GetValue(optIgnoreFiles)!),
                 noIgnoreFiles: parsed.GetValue(optNoIgnoreFile),
-                cleanOutput: parsed.GetValue(optCleanOutput)));
+                cleanOutput: parsed.GetValue(optCleanOutput),
+                readmeFile: parsed.GetValue(optPackUseReadme)));
 
         var cmdUnpack = new Command(
             "unpack",
@@ -576,7 +583,8 @@ partial class Program
         string outputFormat,
         List<string> ignoreGlobs,
         bool noIgnoreFiles = false,
-        bool cleanOutput = false)
+        bool cleanOutput = false,
+        FileInfo? readmeFile = null)
     {
         static void SetupOutputModFolder(
             string input,
@@ -690,6 +698,10 @@ partial class Program
                 if (projectNode.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
                     excelEncrypt = b;
             }
+            else
+            {
+                exportRoot["projectData"] = new JsonObject();
+            }
         }
         else
         {
@@ -711,6 +723,17 @@ partial class Program
             exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? modDataRoot["modNamespace"]?.GetValue<string?>();
         }
         exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? $"MOD_{soleId}";
+
+        var readmePathDefault = Path.Combine(root, "README.md");
+        var readmePath = readmeFile?.FullName ?? readmePathDefault;
+        if (readmeFile != null
+            || (string.IsNullOrWhiteSpace(
+                    exportRoot["projectData"]!["desc"]?.GetValue<string?>())
+                && File.Exists(readmePathDefault)))
+        {
+            var readmeText = File.ReadAllText(readmePath).ReplaceLineEndings("\n");
+            exportRoot["projectData"]!["desc"] = readmeText;
+        }
 
         var outRoot = outputFolder?.FullName ?? root;
         if (outputFolder != null && !string.IsNullOrWhiteSpace(outputFormat))
