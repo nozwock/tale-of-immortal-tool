@@ -917,7 +917,7 @@ partial class Program
         string soleId = GenerateSoleId();
         long createTicks = DateTime.UtcNow.Ticks;
 
-        string root = $"Mod_{soleId} {name}";
+        string root = $"Mod_{soleId}_{name}";
         if (Directory.Exists(root))
         {
             Console.Error.WriteLine($"Error: Folder '{root}' already exists.");
