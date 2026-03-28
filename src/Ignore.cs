@@ -172,7 +172,7 @@ public record class IgnoreWalk(
         }
         else
         {
-            var name = Path.GetFileName(path);
+            var name = PathUtils.GetBaseName(path);
             return name.StartsWith('.');
         }
     }
