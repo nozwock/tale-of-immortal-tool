@@ -798,7 +798,9 @@ partial class Program
             File.WriteAllBytes(file, enc);
         }
 
-        Console.Error.WriteLine("Pack completed.");
+        Console.Error.WriteLine("Successfully packed to:");
+        Console.Out.WriteLine(outRoot);
+
         return 0;
     }
 
