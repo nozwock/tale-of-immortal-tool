@@ -690,7 +690,8 @@ partial class Program
         }
         else
         {
-            throw new FileNotFoundException("Missing required ModProject.cache in root folder.", projPath);
+            Console.Error.WriteLine($"Missing required ModProject.cache in root folder: \"{projPath}\"");
+            return 1;
         }
 
         if (string.IsNullOrWhiteSpace(soleId))
@@ -808,13 +809,19 @@ partial class Program
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
         if (!File.Exists(exportPath))
-            throw new FileNotFoundException("Missing required ModExportData.cache in root folder.", exportPath);
+        {
+            Console.Error.WriteLine($"Missing required ModExportData.cache in root folder: \"{exportPath}\"");
+            return 1;
+        }
 
         var exportDecrypted = EncryptTool.DecryptMult(File.ReadAllBytes(exportPath), EncryptTool.modEncryPassword);
         var exportNode = JsonNode.Parse(Encoding.UTF8.GetString(exportDecrypted))!.AsObject();
 
         if (exportNode["projectData"] is not JsonObject projectData)
-            throw new InvalidDataException("ModExportData.cache missing projectData.");
+        {
+            Console.Error.WriteLine("ModExportData.cache missing projectData.");
+            return 1;
+        }
 
         // Decrypt all the files if encrypted
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
