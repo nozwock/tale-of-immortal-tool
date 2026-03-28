@@ -2,6 +2,8 @@ namespace TaleOfImmortalTool;
 
 public static class PathUtils
 {
+    public static string NormalizeSeparator(string path) => path.Replace("\\", "/");
+
     public static string TrimEndPathSeparator(string path)
         => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 

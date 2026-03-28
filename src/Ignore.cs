@@ -95,7 +95,7 @@ public record class IgnoreWalk(
 
     private void AddPattern(Ignore.Ignore ignore, string line)
     {
-        line = line.Trim().Replace('\\', '/');
+        line = PathUtils.NormalizeSeparator(line.Trim());
 
         if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
             return;
@@ -127,7 +127,7 @@ public record class IgnoreWalk(
                 // Normalizing since IsIgnored treats / and \ differently
                 // https://github.com/jellyfin/jellyfin/issues/15484
                 // https://github.com/goelhardik/ignore/issues/51
-                relForMatch = relForMatch.Replace('\\', '/');
+                relForMatch = PathUtils.NormalizeSeparator(relForMatch);
             if (isDir && !relForMatch.EndsWith('/'))
                 relForMatch += "/"; // Required for IsIgnored to think of it as directory
 
