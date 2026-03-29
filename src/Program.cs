@@ -942,7 +942,7 @@ partial class Program
             ["soleID"] = soleId,
             ["createTicks"] = createTicks,
             ["name"] = $"Mod {soleId} {name}",
-            ["author"] = "unknown",
+            ["author"] = "",
             ["desc"] = "",
             ["ver"] = "1.0.0",
             ["autoSave"] = true,
