@@ -130,7 +130,7 @@ partial class Program
         };
         var optPackUseReadme = new Option<FileInfo>("--readme")
         {
-            Description = "Use a file's contents as description in the mod's cooked metadata.\n"
+            Description = "Use a markdown file for description string in the mod's cooked metadata.\n"
             + "Uses README.md from input folder by default if `desc` field is either empty or "
             + "doesn't exist in `ModProject.cache` or `ModExportData.cache`.",
         }.AcceptExistingOnly();
@@ -732,7 +732,7 @@ partial class Program
                     exportRoot["projectData"]!["desc"]?.GetValue<string?>())
                 && File.Exists(readmePathDefault)))
         {
-            var readmeText = File.ReadAllText(readmePath).ReplaceLineEndings("\n");
+            var readmeText = ToiMarkup.FromMarkdown(File.ReadAllText(readmePath).ReplaceLineEndings("\n"));
             exportRoot["projectData"]!["desc"] = "\n" + readmeText;
         }
 
