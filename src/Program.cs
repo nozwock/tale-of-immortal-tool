@@ -695,26 +695,11 @@ partial class Program
             modInfo.ProjectData.Desc = "\n" + readmeText;
         }
 
-        var outRoot = outputFolder?.FullName ?? root;
-        if (outputFolder != null && !string.IsNullOrWhiteSpace(outputFormat))
+        var outRoot = ResolvePathPlaceholder(outputFolder?.FullName, outputFormat, new()
         {
-            var outName = PathUtils.GetBaseName(outRoot);
-
-            var placeholderValues = new Dictionary<string, string>
-            {
-                ["SoleId"] = modInfo.ProjectData.SoleID,
-                ["FolderName"] = outName,
-            };
-            var outFormattedName = RegexTextPlaceholder.Replace(outputFormat, match =>
-            {
-                var key = match.Groups["placeholder"].Value;
-                return placeholderValues.TryGetValue(key, out var value) ? value : match.Value;
-            });
-            if (!string.IsNullOrWhiteSpace(outFormattedName))
-                outName = outFormattedName;
-
-            outRoot = PathUtils.WithBaseName(outRoot, outName);
-        }
+            { "SoleId", modInfo.ProjectData.SoleID },
+            { "FolderName", PathUtils.GetBaseName(outputFolder?.FullName ?? "") }
+        }) ?? root;
 
         Console.Error.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
         if (cleanOutput && Directory.Exists(outRoot))
@@ -1037,6 +1022,28 @@ partial class Program
         };
 
         return modData;
+    }
+
+    static string? ResolvePathPlaceholder(
+        string? path,
+        string format,
+        Dictionary<string, string> placeholderValues)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && !string.IsNullOrWhiteSpace(format))
+        {
+            var name = PathUtils.GetBaseName(path);
+            var formattedName = RegexTextPlaceholder.Replace(format, match =>
+            {
+                var key = match.Groups["placeholder"].Value;
+                return placeholderValues.TryGetValue(key, out var value) ? value : match.Value;
+            });
+            if (!string.IsNullOrWhiteSpace(formattedName))
+                name = formattedName;
+
+            path = PathUtils.WithBaseName(path, name);
+        }
+
+        return path;
     }
 
     public static IEnumerable<string> GetFilesByPattern(
