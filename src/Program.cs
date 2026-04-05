@@ -265,75 +265,75 @@ partial class Program
         return globs;
     }
 
-    static int RunEncrypt(FileSystemInfo path)
+    static int RunEncrypt(FileSystemInfo file)
     {
-        if (Directory.Exists(path.FullName))
+        if (Directory.Exists(file.FullName))
         {
-            foreach (var file in Directory.EnumerateFiles(path.FullName, "*", SearchOption.AllDirectories))
+            foreach (var path in Directory.EnumerateFiles(file.FullName, "*", SearchOption.AllDirectories))
             {
-                var data = File.ReadAllBytes(file);
-                if (EncryptTool.LooksEncrypted(data))
+                if (EncryptTool.LooksEncrypted(path))
                 {
                     continue;
                 }
 
-                Console.Error.WriteLine($"Encrypting '{file}'");
+                Console.Error.WriteLine($"Encrypting '{path}'");
+                var data = File.ReadAllBytes(path);
                 var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
-                File.WriteAllBytes(file, encrypted);
+                File.WriteAllBytes(path, encrypted);
             }
         }
-        else if (File.Exists(path.FullName))
+        else if (File.Exists(file.FullName))
         {
-            var file = path;
-            var data = File.ReadAllBytes(file.FullName);
-            if (EncryptTool.LooksEncrypted(data))
+            var path = file.FullName;
+            if (EncryptTool.LooksEncrypted(path))
             {
                 return 0;
             }
 
-            Console.Error.WriteLine($"Encrypting '{file}'");
+            Console.Error.WriteLine($"Encrypting '{path}'");
+            var data = File.ReadAllBytes(path);
             var encrypted = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
-            File.WriteAllBytes(file.FullName, encrypted);
+            File.WriteAllBytes(path, encrypted);
         }
         else
         {
-            Console.Error.WriteLine($"Neither a file nor directory: '{path}'");
+            Console.Error.WriteLine($"Neither a file nor directory: '{file}'");
             return 1;
         }
         return 0;
     }
 
-    static int RunDecrypt(FileSystemInfo path, bool inplace)
+    static int RunDecrypt(FileSystemInfo file, bool inplace)
     {
-        if (Directory.Exists(path.FullName))
+        if (Directory.Exists(file.FullName))
         {
-            foreach (var file in Directory.EnumerateFiles(path.FullName, "*", SearchOption.AllDirectories))
+            foreach (var path in Directory.EnumerateFiles(file.FullName, "*", SearchOption.AllDirectories))
             {
-                var data = File.ReadAllBytes(file);
-                if (!EncryptTool.LooksEncrypted(data))
+                if (!EncryptTool.LooksEncrypted(path))
                 {
                     continue;
                 }
 
-                Console.Error.WriteLine($"Decrypting '{file}'");
+                Console.Error.WriteLine($"Decrypting '{path}'");
+                var data = File.ReadAllBytes(path);
                 var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
-                File.WriteAllBytes(file, decrypted);
+                File.WriteAllBytes(path, decrypted);
             }
         }
-        else if (File.Exists(path.FullName))
+        else if (File.Exists(file.FullName))
         {
-            var file = path.FullName;
-            var data = File.ReadAllBytes(file);
-            if (!EncryptTool.LooksEncrypted(data))
+            var path = file.FullName;
+            if (!EncryptTool.LooksEncrypted(path))
             {
                 return 0;
             }
 
-            Console.Error.WriteLine($"Decrypting '{file}'");
+            Console.Error.WriteLine($"Decrypting '{path}'");
+            var data = File.ReadAllBytes(path);
             var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
             if (inplace)
             {
-                File.WriteAllBytes(file, decrypted);
+                File.WriteAllBytes(path, decrypted);
             }
             else
             {
@@ -342,7 +342,7 @@ partial class Program
         }
         else
         {
-            Console.Error.WriteLine($"Neither a file nor directory: '{path}'");
+            Console.Error.WriteLine($"Neither a file nor directory: '{file}'");
             return 1;
         }
         return 0;
@@ -373,8 +373,7 @@ partial class Program
 
             var meta = new SaveUnpackMetadata.FileMeta();
 
-            var bytes = File.ReadAllBytes(filePath);
-            if (EncryptTool.LooksEncrypted(bytes))
+            if (EncryptTool.LooksEncrypted(filePath))
             {
                 meta.IsFileEncrypted = true;
                 try
@@ -390,6 +389,7 @@ partial class Program
                 catch (FormatException) // Invalid base64, etc
                 { }
 
+                var bytes = File.ReadAllBytes(filePath);
                 var decrypted = EncryptTool.DecryptMult(bytes, EncryptTool.cacheEncryPassword);
                 var decompressed = Decompress(decrypted);
 
@@ -529,10 +529,8 @@ partial class Program
     static int RunRestoreExcel(DirectoryInfo folder)
     {
         var root = folder.FullName;
-
-        byte[] data;
-
         var exportPath = Path.Combine(root, "ModExportData.cache");
+
         if (File.Exists(exportPath))
         {
             var decrypted = EncryptTool.DecryptMult(File.ReadAllBytes(exportPath), EncryptTool.modEncryPassword);
@@ -559,28 +557,26 @@ partial class Program
             if (relPath.StartsWith("ModAssets") || relPath.StartsWith("ModCode") || relPath.StartsWith("ModExcel"))
                 continue;
 
-            data = File.ReadAllBytes(file);
-            if (EncryptTool.LooksEncrypted(data))
+            if (EncryptTool.LooksEncrypted(file))
             {
                 continue;
             }
 
             Console.Error.WriteLine($"Encrypting '{file}'");
-            File.WriteAllBytes(file, EncryptTool.EncryptMult(File.ReadAllBytes(file), EncryptTool.modEncryPassword));
+            var data = File.ReadAllBytes(file);
+            File.WriteAllBytes(file, EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword));
         }
 
         // Decrypt any encrypted json file, even if outside ModExcel
         foreach (var file in GetFilesByPattern(root, @"\.json$"))
         {
-            var relPath = Path.GetRelativePath(root, file);
-
-            data = File.ReadAllBytes(file);
-            if (!EncryptTool.LooksEncrypted(data))
+            if (!EncryptTool.LooksEncrypted(file))
             {
                 continue;
             }
 
             Console.Error.WriteLine($"Decrypting '{file}'");
+            var data = File.ReadAllBytes(file);
             File.WriteAllBytes(file, EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword));
         }
         return 0;
@@ -749,27 +745,24 @@ partial class Program
         {
             foreach (var file in GetFilesByPattern(modExcelDir, @"\.json$"))
             {
-                var data = File.ReadAllBytes(file);
-                if (modInfo.ProjectData.ExcelEncrypt
-                    && EncryptTool.LooksEncrypted(data)
-                    || !modInfo.ProjectData.ExcelEncrypt
-                    && !EncryptTool.LooksEncrypted(data))
+                if (modInfo.ProjectData.ExcelEncrypt == EncryptTool.LooksEncrypted(file))
                 {
                     continue;
                 }
 
-                byte[] bytes;
+                byte[] writeBytes;
+                var bytes = File.ReadAllBytes(file);
                 if (modInfo.ProjectData.ExcelEncrypt)
                 {
                     Console.Error.WriteLine($"Encrypting '{file}'");
-                    bytes = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
+                    writeBytes = EncryptTool.EncryptMult(bytes, EncryptTool.modEncryPassword);
                 }
                 else
                 {
                     Console.Error.WriteLine($"Decrypting '{file}'");
-                    bytes = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
+                    writeBytes = EncryptTool.DecryptMult(bytes, EncryptTool.modEncryPassword);
                 }
-                File.WriteAllBytes(file, bytes);
+                File.WriteAllBytes(file, writeBytes);
             }
         }
 
@@ -780,13 +773,13 @@ partial class Program
             if (relPath.StartsWith("ModAssets") || relPath.StartsWith("ModCode") || relPath.StartsWith("ModExcel"))
                 continue;
 
-            var data = File.ReadAllBytes(file);
-            if (EncryptTool.LooksEncrypted(data))
+            if (EncryptTool.LooksEncrypted(file))
             {
                 continue;
             }
 
             Console.Error.WriteLine($"Encrypting '{file}'");
+            var data = File.ReadAllBytes(file);
             var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, enc);
         }
@@ -821,8 +814,7 @@ partial class Program
         // Decrypt all the files if encrypted
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
-            var data = File.ReadAllBytes(file);
-            if (!EncryptTool.LooksEncrypted(data))
+            if (!EncryptTool.LooksEncrypted(file))
             {
                 continue;
             }
@@ -831,6 +823,7 @@ partial class Program
             if (Path.GetFileName(exportPath).Equals(file, StringComparison.OrdinalIgnoreCase)) continue;
 
             Console.Error.WriteLine($"Decrypting '{file}'");
+            var data = File.ReadAllBytes(file);
             var decrypted = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
             File.WriteAllBytes(file, decrypted);
         }
@@ -928,15 +921,15 @@ partial class Program
             return 1;
         }
 
-        byte[] data = File.ReadAllBytes(inputFile.FullName);
-        if (!EncryptTool.LooksEncrypted(data))
+        if (!EncryptTool.LooksEncrypted(inputFile.FullName))
         {
             Console.Error.WriteLine("File is already decrypted: " + inputFile);
             return 1;
         }
 
-        byte[] decryptedData = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
-        string decryptedText = Encoding.UTF8.GetString(decryptedData);
+        var data = File.ReadAllBytes(inputFile.FullName);
+        var decryptedData = EncryptTool.DecryptMult(data, EncryptTool.modEncryPassword);
+        var decryptedText = Encoding.UTF8.GetString(decryptedData);
 
         string formattedJson;
         try

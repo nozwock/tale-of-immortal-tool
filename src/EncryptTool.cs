@@ -16,15 +16,26 @@ public static class EncryptTool
     public const string cacheEncryPassword = "5:.A%KL;,.?<aH._=-/DF4s";
 
     // This is the header that's prepended to an encrypted file
-    private static readonly byte[] validationKeyXor3 = [.. Encoding.UTF8.GetBytes(validationKey).Select(b => (byte)(b ^ 3))];
+    private static readonly byte[] magicHeader = [.. Encoding.UTF8.GetBytes(validationKey).Select(b => (byte)(b ^ 3))];
 
     public static bool LooksEncrypted(ReadOnlySpan<byte> bytes)
     {
-        var header = validationKeyXor3;
-        if (bytes.Length < header.Length) return false;
-        for (int i = 0; i < header.Length; i++)
-            if (bytes[i] != header[i]) return false;
+        if (bytes.Length < magicHeader.Length) return false;
+        for (int i = 0; i < magicHeader.Length; i++)
+            if (bytes[i] != magicHeader[i]) return false;
         return true;
+    }
+
+    public static bool LooksEncrypted(string path)
+    {
+        var buffer = new byte[magicHeader.Length];
+        using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+        {
+            if (fs.Read(buffer, 0, buffer.Length) < buffer.Length)
+                return false;
+        }
+
+        return LooksEncrypted(buffer);
     }
 
     public static byte[] EncryptMult(byte[] input, string key)
@@ -44,24 +55,21 @@ public static class EncryptTool
         }
 
         // Prepend header bytes (each marker char XOR 3)
-        var marker = validationKeyXor3;
-        var result = new byte[marker.Length + outData.Length];
-        Buffer.BlockCopy(marker, 0, result, 0, marker.Length);
-        Buffer.BlockCopy(outData, 0, result, marker.Length, outData.Length);
+        var result = new byte[magicHeader.Length + outData.Length];
+        Buffer.BlockCopy(magicHeader, 0, result, 0, magicHeader.Length);
+        Buffer.BlockCopy(outData, 0, result, magicHeader.Length, outData.Length);
         return result;
     }
 
     public static byte[] DecryptMult(byte[] input, string key)
     {
-        var header = validationKeyXor3;
-
         if (!LooksEncrypted(input))
         {
             return input;
         }
 
         // Skip header
-        int offset = header.Length;
+        int offset = magicHeader.Length;
 
         var keyBytes = Encoding.UTF8.GetBytes(key);
         if (keyBytes.Length == 0) throw new ArgumentException("Key must not be empty.", nameof(key));
