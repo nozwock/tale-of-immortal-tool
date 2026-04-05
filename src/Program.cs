@@ -138,7 +138,6 @@ partial class Program
             "pack",
             """
             Pack mod files, so that the mod can be loaded in-game.
-            Don't try to pack mod made using the in-game mod creator, as ModData.cache is largely ignored except for `.modNamespace`.
             Dlls and related assets from 'ModCode/ModMain/bin/Release/' gets copied over to 'ModCode/dll/'.
             """
         )
@@ -167,7 +166,7 @@ partial class Program
 
         var cmdUnpack = new Command(
             "unpack",
-            "Unpack mod files (in-place), so that the mod can be edited in the in-game mod editor."
+            "Unpack mod files (in-place), decrypting files and extracting ModProject.cache from ModExportData.cache."
         )
         {
             argModFolder
@@ -175,9 +174,19 @@ partial class Program
         cmdUnpack.SetAction(parsed =>
             RunModUnpack(parsed.GetValue(argModFolder)!));
 
-        var cmdMod = new Command("mod", "Mod files packing and unpacking.")
+        var cmdMod = new Command(
+            "mod",
+            "Mod files packing and unpacking."
+            + "\nNOTE: Mod made using the in-game mod creator aren't supported well currently, as ModData.cache "
+            + "is largely ignored except for the `.modNamespace` field."
+        )
         {
-            Subcommands = { cmdRestoreExcel, cmdPack, cmdUnpack },
+            Subcommands =
+            {
+                cmdRestoreExcel,
+                cmdPack,
+                cmdUnpack,
+            },
         };
 
         var argSavePath = new Argument<FileSystemInfo>("path")
