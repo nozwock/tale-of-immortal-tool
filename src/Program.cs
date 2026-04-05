@@ -418,7 +418,7 @@ partial class Program
             var metaPath = Path.Combine(path.FullName, SAVE_UNPACK_META_FILENAME);
             File.WriteAllText(metaPath, JsonSerializer.Serialize(
                 metadata,
-                PrettyJsonTypeInfo(SourceGenerationContext.Default.SaveUnpackMetadata)));
+                new SourceGenerationContext(jsonPrettySerializerOptions).SaveUnpackMetadata));
         }
         else if (File.Exists(path.FullName))
         {
@@ -1134,13 +1134,6 @@ partial class Program
             element.WriteTo(writer);
         }
         return Encoding.UTF8.GetString(buffer.WrittenSpan);
-    }
-
-    static JsonTypeInfo<T> PrettyJsonTypeInfo<T>(JsonTypeInfo<T> typeInfo)
-    {
-        typeInfo.Options.WriteIndented = true;
-        typeInfo.Options.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
-        return typeInfo;
     }
 
     [GeneratedRegex(@"\{\{\s*(?<placeholder>\w+)\s*\}\}", RegexOptions.Compiled)]
