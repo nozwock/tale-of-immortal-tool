@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using ICSharpCode.SharpZipLib.GZip;
 
@@ -105,22 +104,22 @@ partial class Program
                 parsed.GetValue(argPath)!,
                 parsed.GetValue(optDecryptInplace)));
 
-        var cmdRestoreExcel = new Command(
+        var cmdModRestoreExcel = new Command(
             "restore",
             "Decrypt .json mod files (in-place), and set `excelEncrypt=false` in `ModExportData.cache`."
         )
         {
             argModFolder
         };
-        cmdRestoreExcel.SetAction(parsed =>
+        cmdModRestoreExcel.SetAction(parsed =>
             RunRestoreExcel(parsed.GetValue(argModFolder)!));
 
-        var optPackOutput = new Option<DirectoryInfo>("--output")
+        var optModPackOutput = new Option<DirectoryInfo>("--output")
         {
             Description = "Output folder. Defaults to input folder.",
             Aliases = { "-o" },
         }.AcceptLegalFilePathsOnly();
-        var optPackOutputFormat = new Option<string>("--output-format")
+        var optModPackOutputFormat = new Option<string>("--output-format")
         {
             Description = """
             Output folder name format. Only used when --output is specified.
@@ -128,13 +127,13 @@ partial class Program
             """,
             DefaultValueFactory = _ => packOutputNameTemplate,
         };
-        var optPackUseReadme = new Option<FileInfo>("--readme")
+        var optModPackUseReadme = new Option<FileInfo>("--readme")
         {
             Description = "Use a markdown file for description string in the mod's cooked metadata.\n"
             + "Uses README.md from input folder by default if `desc` field is either empty or "
             + "doesn't exist in `ModProject.cache` or `ModExportData.cache`.",
         }.AcceptExistingOnly();
-        var cmdPack = new Command(
+        var cmdModPack = new Command(
             "pack",
             """
             Pack mod files, so that the mod can be loaded in-game.
@@ -143,35 +142,35 @@ partial class Program
         )
         {
             argModFolder,
-            optPackOutput,
+            optModPackOutput,
             optCleanOutput,
             optIgnoreGlobs,
             optIgnoreFiles,
             optNoIgnoreFile,
-            optPackOutputFormat,
-            optPackUseReadme,
+            optModPackOutputFormat,
+            optModPackUseReadme,
         };
-        cmdPack.SetAction(parsed =>
+        cmdModPack.SetAction(parsed =>
             RunModPack(
                 folder: parsed.GetValue(argModFolder)!,
-                outputFolder: parsed.GetValue(optPackOutput),
-                outputFormat: parsed.GetValue(optPackOutputFormat)!,
+                outputFolder: parsed.GetValue(optModPackOutput),
+                outputFormat: parsed.GetValue(optModPackOutputFormat)!,
                 ignoreGlobs: ExtendGlobsWithIgnoreFiles(
                     // CommandLine.Option<List<T>> gives List<T> instead of null if option wasn't specified
                     parsed.GetValue(optIgnoreGlobs)!,
                     parsed.GetValue(optIgnoreFiles)!),
                 noIgnoreFiles: parsed.GetValue(optNoIgnoreFile),
                 cleanOutput: parsed.GetValue(optCleanOutput),
-                readmeFile: parsed.GetValue(optPackUseReadme)));
+                readmeFile: parsed.GetValue(optModPackUseReadme)));
 
-        var cmdUnpack = new Command(
+        var cmdModUnpack = new Command(
             "unpack",
             "Unpack mod files (in-place), decrypting files and extracting ModProject.cache from ModExportData.cache."
         )
         {
             argModFolder
         };
-        cmdUnpack.SetAction(parsed =>
+        cmdModUnpack.SetAction(parsed =>
             RunModUnpack(parsed.GetValue(argModFolder)!));
 
         var cmdMod = new Command(
@@ -183,9 +182,9 @@ partial class Program
         {
             Subcommands =
             {
-                cmdRestoreExcel,
-                cmdPack,
-                cmdUnpack,
+                cmdModRestoreExcel,
+                cmdModPack,
+                cmdModUnpack,
             },
         };
 
