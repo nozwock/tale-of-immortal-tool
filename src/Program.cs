@@ -666,74 +666,29 @@ partial class Program
         }
 
         var root = folder.FullName;
-        var projPath = Path.Combine(root, "ModProject.cache");
-        var exportPath = Path.Combine(root, "ModExportData.cache");
-
-        bool excelEncrypt = false;
-        string? soleId = null;
-        JsonObject exportRoot;
-        if (File.Exists(projPath))
-        {
-            var projectNode = JsonNode.Parse(File.ReadAllText(projPath, Encoding.UTF8))!.AsObject();
-
-            if (projectNode.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
-                excelEncrypt = b;
-
-            soleId = projectNode["soleID"]?.GetValue<string>();
-
-            exportRoot = new JsonObject
-            {
-                ["projectData"] = projectNode,
-                // TODO: Doesn't support packing ModData, only modNamespace is read from it currently
-                ["items"] = new JsonObject(),
-                ["modNamespace"] = null
-            };
-        }
-        else if (File.Exists(exportPath))
-        {
-            var exportDecrypted = EncryptTool.DecryptMult(File.ReadAllBytes(exportPath), EncryptTool.modEncryPassword);
-            exportRoot = JsonNode.Parse(Encoding.UTF8.GetString(exportDecrypted))!.AsObject();
-            if (exportRoot["projectData"] is JsonObject projectNode)
-            {
-                soleId = projectNode["soleID"]?.GetValue<string>();
-                if (projectNode.TryGetPropertyValue("excelEncrypt", out var val) && val is JsonValue jv && jv.TryGetValue(out bool b))
-                    excelEncrypt = b;
-            }
-            else
-            {
-                exportRoot["projectData"] = new JsonObject();
-            }
-        }
-        else
-        {
-            Console.Error.WriteLine($"Missing required ModProject.cache in root folder: \"{projPath}\"");
-            return 1;
-        }
-
-        if (string.IsNullOrWhiteSpace(soleId))
-        {
-            Console.Error.WriteLine("Cannot find soleID in mod's metadata.");
-            return 1;
-        }
-
+        var projectDataPath = Path.Combine(root, "ModProject.cache");
         var modDataPath = Path.Combine(root, "ModData.cache");
-        if (File.Exists(modDataPath))
+        var exportDataPath = Path.Combine(root, "ModExportData.cache");
+
+        ModInfo modInfo;
+        try
         {
-            var modDataRoot = JsonNode.Parse(File.ReadAllText(modDataPath, Encoding.UTF8))!.AsObject();
-            // Important: For dll mods, mod won't be loaded at all if correct namespace is not filled in
-            exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? modDataRoot["modNamespace"]?.GetValue<string?>();
+            modInfo = new(root);
         }
-        exportRoot["modNamespace"] = exportRoot["modNamespace"]?.GetValue<string?>() ?? $"MOD_{soleId}";
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
 
         var readmePathDefault = Path.Combine(root, "README.md");
         var readmePath = readmeFile?.FullName ?? readmePathDefault;
         if (readmeFile != null
-            || (string.IsNullOrWhiteSpace(
-                    exportRoot["projectData"]!["desc"]?.GetValue<string?>())
+            || (string.IsNullOrWhiteSpace(modInfo.ProjectData.Desc)
                 && File.Exists(readmePathDefault)))
         {
             var readmeText = ToiMarkup.FromMarkdown(File.ReadAllText(readmePath).ReplaceLineEndings("\n"));
-            exportRoot["projectData"]!["desc"] = "\n" + readmeText;
+            modInfo.ProjectData.Desc = "\n" + readmeText;
         }
 
         var outRoot = outputFolder?.FullName ?? root;
@@ -743,7 +698,7 @@ partial class Program
 
             var placeholderValues = new Dictionary<string, string>
             {
-                ["SoleId"] = soleId,
+                ["SoleId"] = modInfo.ProjectData.SoleID,
                 ["FolderName"] = outName,
             };
             var outFormattedName = RegexTextPlaceholder.Replace(outputFormat, match =>
@@ -763,22 +718,22 @@ partial class Program
             Console.Error.WriteLine($"Clean output mode: Deleting output folder first...");
             Directory.Delete(outRoot, recursive: true);
         }
-        var modNamespace = exportRoot["modNamespace"]?.GetValue<string?>();
+        var modNamespace = modInfo.ModNamespace;
         SetupOutputModFolder(root, outRoot, modNamespace, ignoreGlobs, noIgnoreFiles);
         root = outRoot; // Operating in output folder now
-        projPath = Path.Combine(root, "ModProject.cache");
+        projectDataPath = Path.Combine(root, "ModProject.cache");
         modDataPath = Path.Combine(root, "ModData.cache");
-        exportPath = Path.Combine(root, "ModExportData.cache");
+        exportDataPath = Path.Combine(root, "ModExportData.cache");
 
         Console.Error.WriteLine("Writing 'ModExportData.cache'");
 
         var exportJsonBytes = Encoding.UTF8.GetBytes(
-            PrettyJsonSerialize(exportRoot)
+            PrettyJsonSerialize(modInfo.AsExportData())
         );
         var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
-        File.WriteAllBytes(exportPath, exportEncrypted);
+        File.WriteAllBytes(exportDataPath, exportEncrypted);
 
-        if (File.Exists(projPath)) File.Delete(projPath);
+        if (File.Exists(projectDataPath)) File.Delete(projectDataPath);
         if (File.Exists(modDataPath)) File.Delete(modDataPath);
 
         var modExcelDir = Path.Combine(root, "ModExcel");
@@ -787,13 +742,16 @@ partial class Program
             foreach (var file in GetFilesByPattern(modExcelDir, @"\.json$"))
             {
                 var data = File.ReadAllBytes(file);
-                if (excelEncrypt && EncryptTool.LooksEncrypted(data) || !excelEncrypt && !EncryptTool.LooksEncrypted(data))
+                if (modInfo.ProjectData.ExcelEncrypt
+                    && EncryptTool.LooksEncrypted(data)
+                    || !modInfo.ProjectData.ExcelEncrypt
+                    && !EncryptTool.LooksEncrypted(data))
                 {
                     continue;
                 }
 
                 byte[] bytes;
-                if (excelEncrypt)
+                if (modInfo.ProjectData.ExcelEncrypt)
                 {
                     Console.Error.WriteLine($"Encrypting '{file}'");
                     bytes = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
@@ -907,15 +865,8 @@ partial class Program
 
     static int RunNewModProject(string name)
     {
-        static string GenerateSoleId()
-        {
-            const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string([.. Enumerable.Range(0, 6).Select(_ => chars[Random.Shared.Next(chars.Length)])]);
-        }
-
         // Generate IDs
-        string soleId = GenerateSoleId();
-        long createTicks = DateTime.UtcNow.Ticks;
+        string soleId = ProjectData.GenerateSoleId();
 
         string root = $"Mod_{soleId}_{name}";
         if (Directory.Exists(root))
@@ -937,28 +888,9 @@ partial class Program
         File.WriteAllText(Path.Combine(root, "ModData.cache"), PrettyJsonSerialize(modData));
 
         // ModProject.cache
-        var modProject = new JsonObject
-        {
-            ["soleID"] = soleId,
-            ["createTicks"] = createTicks,
-            ["name"] = $"Mod {soleId} {name}",
-            ["author"] = "",
-            ["desc"] = "",
-            ["ver"] = "1.0.0",
-            ["autoSave"] = true,
-            ["isCreateNPC"] = true,
-            ["exportVer"] = 0,
-            ["accountID"] = 0,
-            ["publishedFileID"] = 0,
-            ["visibleState"] = 0,
-            ["openCode"] = 0,
-            ["curUpdateDesc"] = null,
-            ["tags"] = new JsonArray(),
-            ["addPreviewPaths"] = new JsonArray(),
-            ["excelEncrypt"] = false
-        };
+        var projectData = new ProjectData($"Mod {soleId} {name}", soleId).ToJsonNode();
 
-        File.WriteAllText(Path.Combine(root, "ModProject.cache"), PrettyJsonSerialize(modProject));
+        File.WriteAllText(Path.Combine(root, "ModProject.cache"), PrettyJsonSerialize(projectData));
 
         Console.Error.WriteLine($"New mod template created at '{root}'");
         return 0;
@@ -1153,4 +1085,5 @@ class SaveUnpackMetadata
 }
 
 [JsonSerializable(typeof(SaveUnpackMetadata))]
+[JsonSerializable(typeof(ProjectData))]
 internal partial class SourceGenerationContext : JsonSerializerContext { }
