@@ -1039,14 +1039,14 @@ partial class Program
         return modData;
     }
 
-    public static IEnumerable<string> GetFilesByPattern(string path,
-                       string rePattern = "",
-                       SearchOption searchOption = SearchOption.AllDirectories)
+    public static IEnumerable<string> GetFilesByPattern(
+        string path,
+        string rePattern = "",
+        SearchOption searchOption = SearchOption.AllDirectories)
     {
         var re = new Regex(rePattern, RegexOptions.IgnoreCase);
         return Directory.EnumerateFiles(path, "*", searchOption)
-                        .Where(file =>
-                                 re.IsMatch(Path.GetFileName(file)));
+            .Where(file => re.IsMatch(Path.GetFileName(file)));
     }
 
     static string PrettyJsonSerialize(JsonNode? node)
