@@ -621,11 +621,6 @@ partial class Program
         }) ?? root;
 
         Console.Error.WriteLine($"Setting up output folder...\nOutput Folder: '{outRoot}'");
-        if (cleanOutput && Directory.Exists(outRoot))
-        {
-            Console.Error.WriteLine($"Clean output mode: Deleting output folder first...");
-            Directory.Delete(outRoot, recursive: true);
-        }
 
         CookMod(root, outRoot, modInfo, ignoreGlobs, noIgnoreFiles, clean: cleanOutput);
 
@@ -892,6 +887,14 @@ partial class Program
         bool noIgnoreFiles = false,
         bool clean = false)
     {
+        if (clean
+            && Directory.Exists(cookDir)
+            && !PathUtils.Equals(modDir, cookDir))
+        {
+            Console.Error.WriteLine($"Deleting already existing cooked directory: \"{cookDir}\"");
+            Directory.Delete(cookDir, recursive: true);
+        }
+
         CopyModWithIgnores(modDir, cookDir, ignoreGlobs ?? [], noIgnoreFiles, ignoreModCode: true);
         TryCookModCode(modDir, cookDir, modInfo.ModNamespace, clean);
 
