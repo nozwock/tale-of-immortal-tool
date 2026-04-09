@@ -71,6 +71,13 @@ class ProjectData : AotJsonBase<ProjectData>, IAotJson<ProjectData>
 
 class ModInfo
 {
+    public enum InfoCollectOption
+    {
+        Any,
+        ProjectData,
+        ExportData,
+    }
+
     private readonly JsonObject modExportData;
     public ProjectData ProjectData { get; set; }
     public string? ModNamespace
@@ -81,14 +88,16 @@ class ModInfo
 
     /// <exception cref="FileNotFoundException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
-    public ModInfo(string modFolder)
+    public ModInfo(string modFolder, InfoCollectOption infoCollect = InfoCollectOption.Any)
     {
         var root = modFolder;
         var projectDataPath = Path.Combine(root, "ModProject.cache");
         var modDataPath = Path.Combine(root, "ModData.cache");
         var exportDataPath = Path.Combine(root, "ModExportData.cache");
 
-        if (File.Exists(projectDataPath))
+        if ((infoCollect == InfoCollectOption.Any
+            || infoCollect == InfoCollectOption.ProjectData)
+            && File.Exists(projectDataPath))
         {
             if (!File.Exists(modDataPath))
             {
@@ -106,7 +115,9 @@ class ModInfo
                 ["modNamespace"] = null
             };
         }
-        else if (File.Exists(exportDataPath))
+        else if ((infoCollect == InfoCollectOption.Any
+            || infoCollect == InfoCollectOption.ExportData)
+            && File.Exists(exportDataPath))
         {
             var exportDecrypted = EncryptTool.DecryptMult(
                 File.ReadAllBytes(exportDataPath),
@@ -123,9 +134,16 @@ class ModInfo
         }
         else
         {
+            string missingProjectFiles = "ModProject.cache, ModData.cache";
+            var missingFiles = infoCollect switch
+            {
+                InfoCollectOption.Any => $"({missingProjectFiles}) | ModExportData.cache",
+                InfoCollectOption.ProjectData => missingProjectFiles,
+                InfoCollectOption.ExportData => "ModExportData.cache",
+                _ => throw new NotImplementedException(),
+            };
             throw new FileNotFoundException(
-                "Failed to collect mod info: missing (ModProject.cache, ModData.cache " +
-                $"| ModExportData.cache) in folder: \"{projectDataPath}\"");
+                $"Failed to collect mod info: missing {missingFiles} in folder: \"{projectDataPath}\"");
         }
 
         var soleId = modExportData["projectData"]?["soleID"]?.GetValue<string>();
