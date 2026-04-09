@@ -4,8 +4,19 @@ public static class PathUtils
 {
     public static string NormalizeSeparator(string path) => path.Replace("\\", "/");
 
+    public static bool Equals(string path, string other)
+        => string.Equals(
+            Path.GetFullPath(path),
+            Path.GetFullPath(other),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
+
     public static string TrimEndPathSeparator(string path)
         => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    public static string[] Split(string path)
+        => path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     public static string? GetParent(string path)
         => Path.GetDirectoryName(TrimEndPathSeparator(path));

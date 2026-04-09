@@ -591,88 +591,7 @@ partial class Program
         string outputFormat = packOutputNameTemplate,
         FileInfo? readmeFile = null)
     {
-        static void SetupOutputModFolder(
-            string input,
-            string output,
-            string? modNamespace,
-            List<string> ignoreGlobs,
-            bool noIgnoreFiles)
-        {
-            // Copy compiled ModCode Release artifacts
-            if (modNamespace != null)
-            {
-                var releaseDir = Path.Combine(input, "ModCode", "ModMain", "bin", "Release");
-                var modMainDll = Path.Combine(releaseDir, $"{modNamespace}.dll");
-
-                Console.Error.WriteLine($"modNamespace: {modNamespace}");
-                if (File.Exists(modMainDll))
-                {
-                    // Copy over all files from `ModCode/ModMain/bin/Release` if main dll exists
-                    // This is the behaviour of the Game's in-game mod tooling as well.
-
-                    var dllOutDir = Path.Combine(output, "ModCode", "dll");
-                    Directory.CreateDirectory(dllOutDir);
-
-                    foreach (var file in Directory.EnumerateFiles(releaseDir))
-                    {
-                        var ext = Path.GetExtension(file);
-                        if (string.Equals(ext, ".pdb", StringComparison.OrdinalIgnoreCase))
-                            continue; // skip debug symbols
-
-                        var dest = Path.Combine(dllOutDir, Path.GetFileName(file));
-                        Console.Error.WriteLine($"Copying: '{file}' -> '{dest}'");
-                        File.Copy(file, dest, overwrite: true);
-                    }
-                }
-                else
-                {
-                    Console.Error.WriteLine($"Couldn't find '{modNamespace}.dll', skipping ModCode");
-                }
-            }
-            else
-            {
-                Console.Error.WriteLine("modNamespace not found, skipping ModCode");
-            }
-
-            if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            Directory.CreateDirectory(output);
-
-            foreach (var srcPath in new IgnoreWalk(
-                [input],
-                Overrides: ignoreGlobs,
-                UseIgnoreFiles: !noIgnoreFiles).Enumerate())
-            {
-                var relPath = Path.GetRelativePath(input, srcPath);
-                var targetPath = Path.Combine(output, relPath);
-
-                // Skip everything under ModCode except dll folder
-                if (relPath.StartsWith("ModCode"))
-                {
-                    var parts = relPath.Split(Path.DirectorySeparatorChar);
-                    if (parts.Length < 2 || parts[1] != "dll")
-                        continue; // skip non-dll contents
-                }
-
-                if (Directory.Exists(srcPath))
-                {
-                    Directory.CreateDirectory(targetPath);
-                }
-                else
-                {
-                    Console.Error.WriteLine($"Copying: '{srcPath}' -> '{targetPath}'");
-                    File.Copy(srcPath, targetPath, true);
-                }
-            }
-        }
-
         var root = folder.FullName;
-        var projectDataPath = Path.Combine(root, "ModProject.cache");
-        var modDataPath = Path.Combine(root, "ModData.cache");
-        var exportDataPath = Path.Combine(root, "ModExportData.cache");
 
         ModInfo modInfo;
         try
@@ -707,67 +626,8 @@ partial class Program
             Console.Error.WriteLine($"Clean output mode: Deleting output folder first...");
             Directory.Delete(outRoot, recursive: true);
         }
-        var modNamespace = modInfo.ModNamespace;
-        SetupOutputModFolder(root, outRoot, modNamespace, ignoreGlobs, noIgnoreFiles);
-        root = outRoot; // Operating in output folder now
-        projectDataPath = Path.Combine(root, "ModProject.cache");
-        modDataPath = Path.Combine(root, "ModData.cache");
-        exportDataPath = Path.Combine(root, "ModExportData.cache");
 
-        Console.Error.WriteLine("Writing 'ModExportData.cache'");
-
-        var exportJsonBytes = Encoding.UTF8.GetBytes(
-            PrettyJsonSerialize(modInfo.AsExportData())
-        );
-        var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
-        File.WriteAllBytes(exportDataPath, exportEncrypted);
-
-        if (File.Exists(projectDataPath)) File.Delete(projectDataPath);
-        if (File.Exists(modDataPath)) File.Delete(modDataPath);
-
-        var modExcelDir = Path.Combine(root, "ModExcel");
-        if (Directory.Exists(modExcelDir))
-        {
-            foreach (var file in GetFilesByPattern(modExcelDir, @"\.json$"))
-            {
-                if (modInfo.ProjectData.ExcelEncrypt == EncryptTool.LooksEncrypted(file))
-                {
-                    continue;
-                }
-
-                byte[] writeBytes;
-                var bytes = File.ReadAllBytes(file);
-                if (modInfo.ProjectData.ExcelEncrypt)
-                {
-                    Console.Error.WriteLine($"Encrypting '{file}'");
-                    writeBytes = EncryptTool.EncryptMult(bytes, EncryptTool.modEncryPassword);
-                }
-                else
-                {
-                    Console.Error.WriteLine($"Decrypting '{file}'");
-                    writeBytes = EncryptTool.DecryptMult(bytes, EncryptTool.modEncryPassword);
-                }
-                File.WriteAllBytes(file, writeBytes);
-            }
-        }
-
-        foreach (var file in GetFilesByPattern(root, @"(\.png)$"))
-        {
-            // Skip ModAssets/ and ModCode/
-            var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets") || relPath.StartsWith("ModCode") || relPath.StartsWith("ModExcel"))
-                continue;
-
-            if (EncryptTool.LooksEncrypted(file))
-            {
-                continue;
-            }
-
-            Console.Error.WriteLine($"Encrypting '{file}'");
-            var data = File.ReadAllBytes(file);
-            var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
-            File.WriteAllBytes(file, enc);
-        }
+        CookMod(root, outRoot, modInfo, ignoreGlobs, noIgnoreFiles, clean: cleanOutput);
 
         Console.Error.WriteLine("Successfully packed to:");
         Console.Out.WriteLine(outRoot);
@@ -1022,6 +882,175 @@ partial class Program
         };
 
         return modData;
+    }
+
+    static void CookMod(
+        string modDir,
+        string cookDir,
+        ModInfo modInfo,
+        List<string>? ignoreGlobs = null,
+        bool noIgnoreFiles = false,
+        bool clean = false)
+    {
+        CopyModWithIgnores(modDir, cookDir, ignoreGlobs ?? [], noIgnoreFiles, ignoreModCode: true);
+        TryCookModCode(modDir, cookDir, modInfo.ModNamespace, clean);
+
+        var projectDataPath = Path.Combine(cookDir, "ModProject.cache");
+        var modDataPath = Path.Combine(cookDir, "ModData.cache");
+        var exportDataPath = Path.Combine(cookDir, "ModExportData.cache");
+
+        Console.Error.WriteLine("Writing 'ModExportData.cache'");
+        var exportJsonBytes = Encoding.UTF8.GetBytes(
+            PrettyJsonSerialize(modInfo.AsExportData())
+        );
+        var exportEncrypted = EncryptTool.EncryptMult(exportJsonBytes, EncryptTool.modEncryPassword);
+        File.WriteAllBytes(exportDataPath, exportEncrypted);
+
+        if (File.Exists(projectDataPath))
+        {
+            Console.Error.WriteLine("Deleting 'ModProject.cache'");
+            File.Delete(projectDataPath);
+        }
+        if (File.Exists(modDataPath))
+        {
+            Console.Error.WriteLine("Deleting 'ModData.cache'");
+            File.Delete(modDataPath);
+        }
+
+        // Encrypting/decrypting ModExcel/**/*.json
+        var modExcelDir = Path.Combine(cookDir, "ModExcel");
+        if (Directory.Exists(modExcelDir))
+        {
+            foreach (var file in GetFilesByPattern(modExcelDir, @"\.json$"))
+            {
+                if (modInfo.ProjectData.ExcelEncrypt == EncryptTool.LooksEncrypted(file))
+                    continue;
+
+                byte[] writeBytes;
+                var bytes = File.ReadAllBytes(file);
+                if (modInfo.ProjectData.ExcelEncrypt)
+                {
+                    Console.Error.WriteLine($"Encrypting '{file}'");
+                    writeBytes = EncryptTool.EncryptMult(bytes, EncryptTool.modEncryPassword);
+                }
+                else
+                {
+                    Console.Error.WriteLine($"Decrypting '{file}'");
+                    writeBytes = EncryptTool.DecryptMult(bytes, EncryptTool.modEncryPassword);
+                }
+                File.WriteAllBytes(file, writeBytes);
+            }
+        }
+
+        // Encrypting **/*.png except ModAssets/, ModCode/, and ModExcel/
+        // TODO: Look at what the in-game mod creator does and follow it instead
+        foreach (var file in GetFilesByPattern(cookDir, @"\.png$"))
+        {
+            var relPath = Path.GetRelativePath(cookDir, file);
+            var firstPart = PathUtils.Split(relPath).ElementAtOrDefault(0);
+
+            if (firstPart == "ModAssets"
+                || firstPart == "ModCode"
+                || firstPart == "ModExcel")
+                continue;
+
+            if (EncryptTool.LooksEncrypted(file))
+                continue;
+
+            Console.Error.WriteLine($"Encrypting '{file}'");
+            var data = File.ReadAllBytes(file);
+            var enc = EncryptTool.EncryptMult(data, EncryptTool.modEncryPassword);
+            File.WriteAllBytes(file, enc);
+        }
+    }
+
+    /// <summary>
+    /// Try copying compiled ModCode Release artifacts <br/>
+    /// Assumes -p:AppendTargetFrameworkToOutputPath=false
+    /// </summary>
+    static bool TryCookModCode(
+        string modDir,
+        string cookDir,
+        string? modNamespace,
+        bool clean = false)
+    {
+        if (string.IsNullOrWhiteSpace(modNamespace))
+        {
+            Console.Error.WriteLine("modNamespace not found, skipping ModCode");
+            return false;
+        }
+
+        var releaseDir = Path.Combine(modDir, "ModCode", "ModMain", "bin", "Release");
+        var modMainDll = Path.Combine(releaseDir, $"{modNamespace}.dll");
+
+        Console.Error.WriteLine($"modNamespace: {modNamespace}");
+        if (!File.Exists(modMainDll))
+        {
+            Console.Error.WriteLine($"Couldn't find '{modNamespace}.dll', skipping ModCode");
+            return false;
+        }
+
+        // Copy over all files from `ModCode/ModMain/bin/Release` if main dll exists
+        // This is the behaviour of the Game's in-game mod tooling as well.
+
+        var dllOutDir = Path.Combine(cookDir, "ModCode", "dll");
+        if (clean && Directory.Exists(dllOutDir))
+        {
+            Console.Error.WriteLine($"Deleting already existing directory: \"{dllOutDir}\"");
+            Directory.Delete(dllOutDir, recursive: true);
+        }
+        Directory.CreateDirectory(dllOutDir);
+
+        foreach (var file in Directory.EnumerateFiles(releaseDir))
+        {
+            var ext = Path.GetExtension(file);
+            if (string.Equals(ext, ".pdb", StringComparison.OrdinalIgnoreCase))
+                continue; // skip debug symbols
+
+            var dest = Path.Combine(dllOutDir, Path.GetFileName(file));
+            Console.Error.WriteLine($"Copying: '{file}' -> '{dest}'");
+            File.Copy(file, dest, overwrite: true);
+        }
+
+        return true;
+    }
+
+    static void CopyModWithIgnores(
+        string from,
+        string to,
+        List<string> ignoreGlobs,
+        bool noIgnoreFiles,
+        bool ignoreModCode = false)
+    {
+        // Skip copying if both are the same directory
+        if (PathUtils.Equals(from, to))
+            return;
+
+        Directory.CreateDirectory(to);
+
+        foreach (var srcPath in new IgnoreWalk(
+            [from],
+            Overrides: ignoreGlobs,
+            UseIgnoreFiles: !noIgnoreFiles).Enumerate())
+        {
+            var relPath = Path.GetRelativePath(from, srcPath);
+            var relParts = PathUtils.Split(relPath);
+            var targetPath = Path.Combine(to, relPath);
+
+            // XXX Could've used ignoreGlobs if the Ignore API supported rooted patterns
+            if (ignoreModCode && relParts.ElementAtOrDefault(0) == "ModCode")
+                continue;
+
+            if (Directory.Exists(srcPath))
+            {
+                Directory.CreateDirectory(targetPath);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Copying: '{srcPath}' -> '{targetPath}'");
+                File.Copy(srcPath, targetPath, true);
+            }
+        }
     }
 
     static string? ResolvePathPlaceholder(
