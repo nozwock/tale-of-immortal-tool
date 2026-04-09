@@ -593,16 +593,7 @@ partial class Program
     {
         var root = folder.FullName;
 
-        ModInfo modInfo;
-        try
-        {
-            modInfo = new(root);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine(ex);
-            return 1;
-        }
+        var modInfo = new ModInfo(root);
 
         var readmePathDefault = Path.Combine(root, "README.md");
         var readmePath = readmeFile?.FullName ?? readmePathDefault;
