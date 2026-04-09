@@ -112,7 +112,7 @@ partial class Program
             argModFolder
         };
         cmdModRestoreExcel.SetAction(parsed =>
-            RunRestoreExcel(parsed.GetValue(argModFolder)!));
+            RunModRestoreExcel(parsed.GetValue(argModFolder)!));
 
         var optModPackOutput = new Option<DirectoryInfo>("--output")
         {
@@ -526,7 +526,7 @@ partial class Program
         return 0;
     }
 
-    static int RunRestoreExcel(DirectoryInfo folder)
+    static int RunModRestoreExcel(DirectoryInfo folder)
     {
         var root = folder.FullName;
         var exportPath = Path.Combine(root, "ModExportData.cache");
@@ -554,13 +554,15 @@ partial class Program
         foreach (var file in GetFilesByPattern(root, @"\.png$"))
         {
             var relPath = Path.GetRelativePath(root, file);
-            if (relPath.StartsWith("ModAssets") || relPath.StartsWith("ModCode") || relPath.StartsWith("ModExcel"))
+            var firstPart = PathUtils.Split(relPath).ElementAtOrDefault(0);
+
+            if (firstPart == "ModAssets"
+                || firstPart == "ModCode"
+                || firstPart == "ModExcel")
                 continue;
 
             if (EncryptTool.LooksEncrypted(file))
-            {
                 continue;
-            }
 
             Console.Error.WriteLine($"Encrypting '{file}'");
             var data = File.ReadAllBytes(file);
@@ -571,9 +573,7 @@ partial class Program
         foreach (var file in GetFilesByPattern(root, @"\.json$"))
         {
             if (!EncryptTool.LooksEncrypted(file))
-            {
                 continue;
-            }
 
             Console.Error.WriteLine($"Decrypting '{file}'");
             var data = File.ReadAllBytes(file);
