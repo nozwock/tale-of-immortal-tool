@@ -85,6 +85,11 @@ class ModInfo
         get => modExportData?["modNamespace"]?.GetValue<string>();
         set => modExportData?["modNamespace"] = value;
     }
+    public JsonNode? ExportItems
+    {
+        get => modExportData?["items"];
+        set => modExportData?["items"] = value;
+    }
 
     /// <exception cref="FileNotFoundException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
