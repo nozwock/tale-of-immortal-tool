@@ -19,6 +19,11 @@ partial class Program
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
+    static readonly JsonWriterOptions jsonPrettyWriterOptions = new()
+    {
+        Indented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     static int Main(string[] args)
     {
@@ -467,11 +472,11 @@ partial class Program
             var ext = Path.GetExtension(filePath);
 
             var bytes = File.ReadAllBytes(filePath);
-            // Minify json before packing
             try
             {
+                // Minify json before packing
                 using var doc = JsonDocument.Parse(bytes);
-                bytes = Encoding.UTF8.GetBytes(PrettyJsonSerialize(doc.RootElement));
+                bytes = Encoding.UTF8.GetBytes(JsonSerialize(doc.RootElement));
             }
             catch { }
 
@@ -1068,15 +1073,12 @@ partial class Program
         return node?.ToJsonString(jsonPrettySerializerOptions) ?? "null";
     }
 
-    static string PrettyJsonSerialize(JsonElement element)
+    static string PrettyJsonSerialize(JsonElement element) => JsonSerialize(element, jsonPrettyWriterOptions);
+
+    static string JsonSerialize(JsonElement element, JsonWriterOptions jsonWriterOptions = default)
     {
         var buffer = new ArrayBufferWriter<byte>();
-        var options = new JsonWriterOptions
-        {
-            Indented = true,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        };
-        using (var writer = new Utf8JsonWriter(buffer, options))
+        using (var writer = new Utf8JsonWriter(buffer, jsonWriterOptions))
         {
             element.WriteTo(writer);
         }
