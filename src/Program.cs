@@ -533,17 +533,15 @@ partial class Program
 
         if (File.Exists(exportPath))
         {
-            var decrypted = EncryptTool.DecryptMult(File.ReadAllBytes(exportPath), EncryptTool.modEncryPassword);
+            var modInfo = new ModInfo(root, ModInfo.InfoCollectOption.ExportData);
 
-            // Set projectData.excelEncrypt = false
-            var json = JsonNode.Parse(decrypted);
-            if (json?["projectData"]?["excelEncrypt"] != null && json["projectData"]!["excelEncrypt"]!.GetValue<bool>())
+            if (modInfo.ProjectData.ExcelEncrypt)
             {
                 Console.Error.WriteLine($"Disabling excelEncrypt in '{exportPath}'");
-                json["projectData"]!["excelEncrypt"] = false;
+                modInfo.ProjectData.ExcelEncrypt = false;
 
-                var modified = Encoding.UTF8.GetBytes(PrettyJsonSerialize(json));
-                File.WriteAllBytes(exportPath, EncryptTool.EncryptMult(modified, EncryptTool.modEncryPassword));
+                var exportJson = Encoding.UTF8.GetBytes(PrettyJsonSerialize(modInfo.AsExportData()));
+                File.WriteAllBytes(exportPath, EncryptTool.EncryptMult(exportJson, EncryptTool.modEncryPassword));
             }
             else
             {
@@ -627,28 +625,13 @@ partial class Program
         var root = folder.FullName;
         var exportPath = Path.Combine(root, "ModExportData.cache");
 
-        if (!File.Exists(exportPath))
-        {
-            Console.Error.WriteLine($"Missing required ModExportData.cache in root folder: \"{exportPath}\"");
-            return 1;
-        }
-
-        var exportDecrypted = EncryptTool.DecryptMult(File.ReadAllBytes(exportPath), EncryptTool.modEncryPassword);
-        var exportNode = JsonNode.Parse(Encoding.UTF8.GetString(exportDecrypted))!.AsObject();
-
-        if (exportNode["projectData"] is not JsonObject projectData)
-        {
-            Console.Error.WriteLine("ModExportData.cache missing projectData.");
-            return 1;
-        }
+        var modInfo = new ModInfo(root, ModInfo.InfoCollectOption.ExportData);
 
         // Decrypt all the files if encrypted
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
             if (!EncryptTool.LooksEncrypted(file))
-            {
                 continue;
-            }
 
             // Skip ModExportData.cache metadata file
             if (Path.GetFileName(exportPath).Equals(file, StringComparison.OrdinalIgnoreCase)) continue;
@@ -659,7 +642,7 @@ partial class Program
             File.WriteAllBytes(file, decrypted);
         }
 
-        if (exportNode["items"] is JsonObject items)
+        if (modInfo.ExportItems is JsonObject items)
         {
             var jsonDir = Path.Combine(root, "ModExcel", "ModExportDataJson");
             Directory.CreateDirectory(jsonDir);
@@ -678,11 +661,11 @@ partial class Program
         // Write ModProject.cache
         var projPath = Path.Combine(root, "ModProject.cache");
         File.WriteAllText(projPath,
-            PrettyJsonSerialize(projectData),
+            modInfo.ProjectData.ToJsonString(jsonPrettySerializerOptions),
             Encoding.UTF8);
 
-        var soleId = projectData["soleID"]?.GetValue<string>();
-        var modData = NewModDataCache(soleId);
+        // Write ModData.cache
+        var modData = NewModDataCache(modInfo.ProjectData.SoleID);
         var modDataPath = Path.Combine(root, "ModData.cache");
         File.WriteAllText(modDataPath,
             PrettyJsonSerialize(modData),
