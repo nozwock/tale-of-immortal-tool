@@ -78,6 +78,10 @@ class ModInfo
         ExportData,
     }
 
+    public static readonly string projectDataFileName = "ModProject.cache";
+    public static readonly string modDataFileName = "ModData.cache";
+    public static readonly string exportDataFileName = "ModExportData.cache";
+
     private readonly JsonObject modExportData;
     public ProjectData ProjectData { get; set; }
     public string? ModNamespace
@@ -96,9 +100,9 @@ class ModInfo
     public ModInfo(string modFolder, InfoCollectOption infoCollect = InfoCollectOption.Any)
     {
         var root = modFolder;
-        var projectDataPath = Path.Combine(root, "ModProject.cache");
-        var modDataPath = Path.Combine(root, "ModData.cache");
-        var exportDataPath = Path.Combine(root, "ModExportData.cache");
+        var projectDataPath = Path.Combine(root, projectDataFileName);
+        var modDataPath = Path.Combine(root, modDataFileName);
+        var exportDataPath = Path.Combine(root, exportDataFileName);
 
         if ((infoCollect == InfoCollectOption.Any
             || infoCollect == InfoCollectOption.ProjectData)
@@ -134,17 +138,17 @@ class ModInfo
             }
             else
             {
-                throw new InvalidOperationException("Failed to find .projectData object in ModExportData.cache");
+                throw new InvalidOperationException($"Failed to find .projectData object in {exportDataFileName}");
             }
         }
         else
         {
-            string missingProjectFiles = "ModProject.cache, ModData.cache";
+            string missingProjectFiles = $"{projectDataFileName}, {modDataFileName}";
             var missingFiles = infoCollect switch
             {
-                InfoCollectOption.Any => $"({missingProjectFiles}) | ModExportData.cache",
+                InfoCollectOption.Any => $"({missingProjectFiles}) | {exportDataFileName}",
                 InfoCollectOption.ProjectData => missingProjectFiles,
-                InfoCollectOption.ExportData => "ModExportData.cache",
+                InfoCollectOption.ExportData => exportDataFileName,
                 _ => throw new NotImplementedException(),
             };
             throw new FileNotFoundException(

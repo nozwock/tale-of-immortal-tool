@@ -71,7 +71,7 @@ partial class Program
         var cmdEdit = new Command(
             "edit",
             "Edit encrypted file in default text editor (currently restricted to json files)."
-            + " Useful for editing 'ModExportData.cache'."
+            + $" Useful for editing '{ModInfo.exportDataFileName}'."
         )
         {
             argInputFile
@@ -106,7 +106,7 @@ partial class Program
 
         var cmdModRestoreExcel = new Command(
             "restore",
-            "Decrypt .json mod files (in-place), and set `excelEncrypt=false` in `ModExportData.cache`."
+            $"Decrypt .json mod files (in-place), and set `excelEncrypt=false` in `{ModInfo.exportDataFileName}`."
         )
         {
             argModFolder
@@ -131,7 +131,7 @@ partial class Program
         {
             Description = "Use a markdown file for description string in the mod's cooked metadata.\n"
             + "Uses README.md from input folder by default if `desc` field is either empty or "
-            + "doesn't exist in `ModProject.cache` or `ModExportData.cache`.",
+            + $"doesn't exist in `{ModInfo.projectDataFileName}` or `{ModInfo.exportDataFileName}`.",
         }.AcceptExistingOnly();
         var cmdModPack = new Command(
             "pack",
@@ -165,7 +165,8 @@ partial class Program
 
         var cmdModUnpack = new Command(
             "unpack",
-            "Unpack mod files (in-place), decrypting files and extracting ModProject.cache from ModExportData.cache."
+            "Unpack mod files (in-place), decrypting files and extracting "
+            + $"{ModInfo.projectDataFileName} from {ModInfo.exportDataFileName}."
         )
         {
             argModFolder
@@ -176,7 +177,7 @@ partial class Program
         var cmdMod = new Command(
             "mod",
             "Mod files packing and unpacking."
-            + "\nNOTE: Mod made using the in-game mod creator aren't supported well currently, as ModData.cache "
+            + $"\nNOTE: Mod made using the in-game mod creator aren't supported well currently, as {ModInfo.modDataFileName} "
             + "is largely ignored except for the `.modNamespace` field."
         )
         {
@@ -529,7 +530,7 @@ partial class Program
     static int RunModRestoreExcel(DirectoryInfo folder)
     {
         var root = folder.FullName;
-        var exportPath = Path.Combine(root, "ModExportData.cache");
+        var exportPath = Path.Combine(root, ModInfo.exportDataFileName);
 
         if (File.Exists(exportPath))
         {
@@ -623,7 +624,7 @@ partial class Program
     {
         // TODO: Add an option for separate output folder
         var root = folder.FullName;
-        var exportPath = Path.Combine(root, "ModExportData.cache");
+        var exportPath = Path.Combine(root, ModInfo.exportDataFileName);
 
         var modInfo = new ModInfo(root, ModInfo.InfoCollectOption.ExportData);
 
@@ -659,14 +660,14 @@ partial class Program
         }
 
         // Write ModProject.cache
-        var projPath = Path.Combine(root, "ModProject.cache");
+        var projPath = Path.Combine(root, ModInfo.projectDataFileName);
         File.WriteAllText(projPath,
             modInfo.ProjectData.ToJsonString(jsonPrettySerializerOptions),
             Encoding.UTF8);
 
         // Write ModData.cache
         var modData = NewModDataCache(modInfo.ProjectData.SoleID);
-        var modDataPath = Path.Combine(root, "ModData.cache");
+        var modDataPath = Path.Combine(root, ModInfo.modDataFileName);
         File.WriteAllText(modDataPath,
             PrettyJsonSerialize(modData),
             Encoding.UTF8);
@@ -700,12 +701,12 @@ partial class Program
         // ModData.cache
         var modData = NewModDataCache(soleId);
 
-        File.WriteAllText(Path.Combine(root, "ModData.cache"), PrettyJsonSerialize(modData));
+        File.WriteAllText(Path.Combine(root, ModInfo.modDataFileName), PrettyJsonSerialize(modData));
 
         // ModProject.cache
         var projectData = new ProjectData($"Mod {soleId} {name}", soleId).ToJsonNode();
 
-        File.WriteAllText(Path.Combine(root, "ModProject.cache"), PrettyJsonSerialize(projectData));
+        File.WriteAllText(Path.Combine(root, ModInfo.projectDataFileName), PrettyJsonSerialize(projectData));
 
         Console.Error.WriteLine($"New mod template created at '{root}'");
         return 0;
@@ -872,11 +873,11 @@ partial class Program
         CopyModWithIgnores(modDir, cookDir, ignoreGlobs ?? [], noIgnoreFiles, ignoreModCode: true);
         TryCookModCode(modDir, cookDir, modInfo.ModNamespace, clean);
 
-        var projectDataPath = Path.Combine(cookDir, "ModProject.cache");
-        var modDataPath = Path.Combine(cookDir, "ModData.cache");
-        var exportDataPath = Path.Combine(cookDir, "ModExportData.cache");
+        var projectDataPath = Path.Combine(cookDir, ModInfo.projectDataFileName);
+        var modDataPath = Path.Combine(cookDir, ModInfo.modDataFileName);
+        var exportDataPath = Path.Combine(cookDir, ModInfo.exportDataFileName);
 
-        Console.Error.WriteLine("Writing 'ModExportData.cache'");
+        Console.Error.WriteLine($"Writing {ModInfo.exportDataFileName}");
         var exportJsonBytes = Encoding.UTF8.GetBytes(
             PrettyJsonSerialize(modInfo.AsExportData())
         );
@@ -885,12 +886,12 @@ partial class Program
 
         if (File.Exists(projectDataPath))
         {
-            Console.Error.WriteLine("Deleting 'ModProject.cache'");
+            Console.Error.WriteLine($"Deleting {ModInfo.projectDataFileName}");
             File.Delete(projectDataPath);
         }
         if (File.Exists(modDataPath))
         {
-            Console.Error.WriteLine("Deleting 'ModData.cache'");
+            Console.Error.WriteLine($"Deleting {ModInfo.modDataFileName}");
             File.Delete(modDataPath);
         }
 
