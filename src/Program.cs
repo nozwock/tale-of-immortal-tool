@@ -640,7 +640,9 @@ partial class Program
                 continue;
 
             // Skip ModExportData.cache metadata file
-            if (Path.GetFileName(exportPath).Equals(file, StringComparison.OrdinalIgnoreCase)) continue;
+            if (Path.GetFileName(file)
+                .Equals(ModInfo.exportDataFileName, PathUtils.StringComparison))
+                continue;
 
             Console.Error.WriteLine($"Decrypting '{file}'");
             var data = File.ReadAllBytes(file);

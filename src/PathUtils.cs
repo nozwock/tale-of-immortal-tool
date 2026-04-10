@@ -2,15 +2,14 @@ namespace TaleOfImmortalTool;
 
 public static class PathUtils
 {
+    public static StringComparison StringComparison => OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
     public static string NormalizeSeparator(string path) => path.Replace("\\", "/");
 
     public static bool Equals(string path, string other)
-        => string.Equals(
-            Path.GetFullPath(path),
-            Path.GetFullPath(other),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
+        => string.Equals(Path.GetFullPath(path), Path.GetFullPath(other), StringComparison);
 
     public static string TrimEndPathSeparator(string path)
         => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
