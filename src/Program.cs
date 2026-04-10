@@ -278,9 +278,7 @@ partial class Program
             foreach (var path in Directory.EnumerateFiles(file.FullName, "*", SearchOption.AllDirectories))
             {
                 if (EncryptTool.LooksEncrypted(path))
-                {
                     continue;
-                }
 
                 Console.Error.WriteLine($"Encrypting '{path}'");
                 var data = File.ReadAllBytes(path);
@@ -292,9 +290,7 @@ partial class Program
         {
             var path = file.FullName;
             if (EncryptTool.LooksEncrypted(path))
-            {
                 return 0;
-            }
 
             Console.Error.WriteLine($"Encrypting '{path}'");
             var data = File.ReadAllBytes(path);
@@ -316,9 +312,7 @@ partial class Program
             foreach (var path in Directory.EnumerateFiles(file.FullName, "*", SearchOption.AllDirectories))
             {
                 if (!EncryptTool.LooksEncrypted(path))
-                {
                     continue;
-                }
 
                 Console.Error.WriteLine($"Decrypting '{path}'");
                 var data = File.ReadAllBytes(path);
@@ -330,9 +324,7 @@ partial class Program
         {
             var path = file.FullName;
             if (!EncryptTool.LooksEncrypted(path))
-            {
                 return 0;
-            }
 
             Console.Error.WriteLine($"Decrypting '{path}'");
             var data = File.ReadAllBytes(path);
@@ -463,9 +455,7 @@ partial class Program
         void ProcessFile(string filePath, SaveUnpackMetadata.FileMeta? meta = null)
         {
             if (!File.Exists(filePath) || meta?.IsFileEncrypted == false)
-            {
                 return;
-            }
 
             var rootPath = Path.GetDirectoryName(filePath)!;
             var outputBasename = Path.GetFileNameWithoutExtension(filePath);
@@ -730,7 +720,7 @@ partial class Program
         static string GetEditor()
         {
             string? editor = Environment.GetEnvironmentVariable("VISUAL")
-                          ?? Environment.GetEnvironmentVariable("EDITOR");
+                ?? Environment.GetEnvironmentVariable("EDITOR");
 
             if (!string.IsNullOrEmpty(editor))
                 return editor;
@@ -789,8 +779,10 @@ partial class Program
             }
             psi.ArgumentList.Add(tempFile);
 
-            using var proc = Process.Start(psi)!;
-            proc.WaitForExit();
+            using (var proc = Process.Start(psi)!)
+            {
+                proc.WaitForExit();
+            }
 
             var modifiedData = File.ReadAllBytes(tempFile);
             string modifiedText = Encoding.UTF8.GetString(modifiedData);
