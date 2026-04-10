@@ -539,7 +539,9 @@ partial class Program
 
         if (File.Exists(exportPath))
         {
-            var modInfo = new ModInfo(root, ModInfo.InfoCollectOption.ExportData);
+            var modInfo = GetModInfo(root, ModInfo.InfoCollectOption.ExportData);
+            if (modInfo is null)
+                return 1;
 
             if (modInfo.ProjectData.ExcelEncrypt)
             {
@@ -597,7 +599,9 @@ partial class Program
     {
         var root = folder.FullName;
 
-        var modInfo = new ModInfo(root);
+        var modInfo = GetModInfo(root);
+        if (modInfo is null)
+            return 1;
 
         var readmePathDefault = Path.Combine(root, "README.md");
         var readmePath = readmeFile?.FullName ?? readmePathDefault;
@@ -631,7 +635,9 @@ partial class Program
         var root = folder.FullName;
         var exportPath = Path.Combine(root, ModInfo.exportDataFileName);
 
-        var modInfo = new ModInfo(root, ModInfo.InfoCollectOption.ExportData);
+        var modInfo = GetModInfo(root, ModInfo.InfoCollectOption.ExportData);
+        if (modInfo is null)
+            return 1;
 
         // Decrypt all the files if encrypted
         foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
@@ -1058,6 +1064,21 @@ partial class Program
         }
 
         return path;
+    }
+
+    static ModInfo? GetModInfo(
+        string modFolder,
+        ModInfo.InfoCollectOption infoCollect = ModInfo.InfoCollectOption.Any)
+    {
+        try
+        {
+            return new(modFolder, infoCollect);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return null;
+        }
     }
 
     public static IEnumerable<string> GetFilesByPattern(
