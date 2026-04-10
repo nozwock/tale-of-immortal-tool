@@ -182,8 +182,9 @@ partial class Program
         var cmdMod = new Command(
             "mod",
             "Mod files packing and unpacking."
-            + $"\nNOTE: Mod made using the in-game mod creator aren't supported well currently, as {ModInfo.modDataFileName} "
-            + "is largely ignored except for the `.modNamespace` field."
+            + $"\nNOTE: Mod made using the in-game mod creator aren't supported well currently when building "
+            + $"{ModInfo.exportDataFileName}, as {ModInfo.modDataFileName} is largely ignored except for the "
+            + "`.modNamespace` field."
         )
         {
             Subcommands =
