@@ -13,6 +13,7 @@ namespace TaleOfImmortalTool;
 partial class Program
 {
     const string packOutputNameTemplate = "Mod_{{SoleId}}_{{FolderName}}";
+    const string exportOutputNameTemplate = "ModProject_{{SoleId}}_{{FolderName}}";
 
     static readonly JsonSerializerOptions jsonPrettySerializerOptions = new()
     {
@@ -132,9 +133,9 @@ partial class Program
             """,
             DefaultValueFactory = _ => packOutputNameTemplate,
         };
-        var optModPackUseReadme = new Option<FileInfo>("--readme")
+        var optModUseReadme = new Option<FileInfo>("--readme")
         {
-            Description = "Use a markdown file for description string in the mod's cooked metadata.\n"
+            Description = "Use a markdown file for description string in the mod's metadata.\n"
             + "Uses README.md from input folder by default if `desc` field is either empty or "
             + $"doesn't exist in `{ModInfo.projectDataFileName}` or `{ModInfo.exportDataFileName}`.",
         }.AcceptExistingOnly();
@@ -153,7 +154,7 @@ partial class Program
             optIgnoreFiles,
             optNoIgnoreFile,
             optModPackOutputFormat,
-            optModPackUseReadme,
+            optModUseReadme,
         };
         cmdModPack.SetAction(parsed =>
             RunModPack(
@@ -166,7 +167,7 @@ partial class Program
                     parsed.GetValue(optIgnoreFiles)!),
                 noIgnoreFiles: parsed.GetValue(optNoIgnoreFile),
                 cleanOutput: parsed.GetValue(optCleanOutput),
-                readmeFile: parsed.GetValue(optModPackUseReadme)));
+                readmeFile: parsed.GetValue(optModUseReadme)));
 
         var cmdModUnpack = new Command(
             "unpack",
@@ -178,6 +179,51 @@ partial class Program
         };
         cmdModUnpack.SetAction(parsed =>
             RunModUnpack(parsed.GetValue(argModFolder)!));
+
+        // NOTE: System.CommandLine 3.0.5 doesn't seem to support more than one Argument
+        // Or, at least the help message doesn't
+        var optModExportOutput = new Option<DirectoryInfo>("--output")
+        {
+            Description = "Output folder.",
+            Aliases = { "-o" },
+            Required = true,
+        }.AcceptLegalFilePathsOnly();
+        var optModExportOutputFormat = new Option<string>("--output-format")
+        {
+            Description = """
+            Output folder name format.
+            Set it to empty string to disable formatting.
+            """,
+            DefaultValueFactory = _ => exportOutputNameTemplate,
+        };
+        var cmdModExport = new Command(
+            "export",
+            "Export a mod in a way that mirrors the structure of packed open-source mods and mod projects.\n"
+            + "Folder must be a mod project.\n"
+            + "Useful if you want to run the mod in the game's debug mode, though this requires "
+            + "that the ModCode plugins are already compiled in ModCode/ModMain/bin/Release/"
+        )
+        {
+            argModFolder,
+            optModExportOutput,
+            optModExportOutputFormat,
+            optCleanOutput,
+            optIgnoreGlobs,
+            optIgnoreFiles,
+            optNoIgnoreFile,
+            optModUseReadme,
+        };
+        cmdModExport.SetAction(parsed =>
+            RunModExport(
+                folder: parsed.GetValue(argModFolder)!,
+                outputFolder: parsed.GetValue(optModExportOutput),
+                outputFormat: parsed.GetValue(optModExportOutputFormat)!,
+                ignoreGlobs: ExtendGlobsWithIgnoreFiles(
+                    parsed.GetValue(optIgnoreGlobs)!,
+                    parsed.GetValue(optIgnoreFiles)!),
+                noIgnoreFiles: parsed.GetValue(optNoIgnoreFile),
+                cleanOutput: parsed.GetValue(optCleanOutput),
+                readmeFile: parsed.GetValue(optModUseReadme)));
 
         var cmdMod = new Command(
             "mod",
@@ -192,6 +238,7 @@ partial class Program
                 cmdModRestoreExcel,
                 cmdModPack,
                 cmdModUnpack,
+                cmdModExport,
             },
         };
 
@@ -680,6 +727,52 @@ partial class Program
         File.Delete(exportPath);
 
         Console.Error.WriteLine("Unpack completed.");
+        return 0;
+    }
+
+    static int RunModExport(
+        DirectoryInfo folder,
+        DirectoryInfo outputFolder,
+        List<string> ignoreGlobs,
+        bool noIgnoreFiles = false,
+        bool cleanOutput = false,
+        string outputFormat = exportOutputNameTemplate,
+        FileInfo? readmeFile = null)
+    {
+        var root = folder.FullName;
+
+        var modInfo = GetModInfo(root, ModInfo.InfoCollectOption.ProjectData);
+        if (modInfo is null)
+            return 1;
+
+        var readmePathDefault = Path.Combine(root, "README.md");
+        var readmePath = readmeFile?.FullName ?? readmePathDefault;
+        if (readmeFile != null
+            || (string.IsNullOrWhiteSpace(modInfo.ProjectData.Desc)
+                && File.Exists(readmePathDefault)))
+        {
+            var readmeText = ToiMarkup.FromMarkdown(File.ReadAllText(readmePath).ReplaceLineEndings("\n"));
+            modInfo.ProjectData.Desc = "\n" + readmeText;
+        }
+
+        var outRoot = ResolvePathPlaceholder(outputFolder.FullName, outputFormat, new()
+        {
+            { "SoleId", modInfo.ProjectData.SoleID },
+            { "FolderName", PathUtils.GetBaseName(outputFolder.FullName) }
+        });
+
+        CopyModWithIgnores(root, Path.Join(outRoot, "ModProject"), ignoreGlobs, noIgnoreFiles);
+        CookMod(
+            root,
+            Path.Join(outRoot, "debug"),
+            modInfo,
+            [.. ignoreGlobs, "README.md"],
+            noIgnoreFiles,
+            clean: cleanOutput);
+
+        Console.Error.WriteLine("Successfully exported to:");
+        Console.Out.WriteLine(outRoot);
+
         return 0;
     }
 
