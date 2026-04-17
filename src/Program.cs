@@ -629,7 +629,7 @@ partial class Program
     static int RunModPack(
         DirectoryInfo folder,
         DirectoryInfo? outputFolder,
-        List<string> ignoreGlobs,
+        IReadOnlyList<string> ignoreGlobs,
         bool noIgnoreFiles = false,
         bool cleanOutput = false,
         string outputFormat = packOutputNameTemplate,
@@ -733,7 +733,7 @@ partial class Program
     static int RunModExport(
         DirectoryInfo folder,
         DirectoryInfo outputFolder,
-        List<string> ignoreGlobs,
+        IReadOnlyList<string> ignoreGlobs,
         bool noIgnoreFiles = false,
         bool cleanOutput = false,
         string outputFormat = exportOutputNameTemplate,
@@ -957,7 +957,7 @@ partial class Program
         string modDir,
         string cookDir,
         ModInfo modInfo,
-        List<string>? ignoreGlobs = null,
+        IReadOnlyList<string>? ignoreGlobs = null,
         bool noIgnoreFiles = false,
         bool clean = false)
     {
@@ -1095,7 +1095,7 @@ partial class Program
     static void CopyModWithIgnores(
         string from,
         string to,
-        List<string> ignoreGlobs,
+        IReadOnlyList<string> ignoreGlobs,
         bool noIgnoreFiles,
         bool ignoreModCode = false)
     {
