@@ -216,7 +216,7 @@ partial class Program
         cmdModExport.SetAction(parsed =>
             RunModExport(
                 folder: parsed.GetValue(argModFolder)!,
-                outputFolder: parsed.GetValue(optModExportOutput),
+                outputFolder: parsed.GetValue(optModExportOutput)!,
                 outputFormat: parsed.GetValue(optModExportOutputFormat)!,
                 ignoreGlobs: ExtendGlobsWithIgnoreFiles(
                     parsed.GetValue(optIgnoreGlobs)!,
