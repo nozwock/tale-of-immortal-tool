@@ -292,6 +292,10 @@ partial class Program
             Description = "Specify working directory.",
             Aliases = { "-C" },
         }.AcceptLegalFilePathsOnly();
+        var optLocalizeNoPrefix = new Option<bool>("--no-prefix")
+        {
+            Description = "Don't prepend \"{SoleId}.\" to \".key\".",
+        };
         var cmdLocalize = new Command(
             "localize",
             """
@@ -304,11 +308,13 @@ partial class Program
         )
         {
             optLocalizeCwd,
+            optLocalizeNoPrefix,
         };
         cmdLocalize.SetAction(parsed =>
             RunLocalize(
                 parsed.GetValue(optLocalizeCwd)?.FullName
-                ?? Directory.GetCurrentDirectory()));
+                ?? Directory.GetCurrentDirectory(),
+                parsed.GetValue(optLocalizeNoPrefix)));
 
         var cmdRoot = new RootCommand("Modding tooling for Tale of Immortal")
         {
@@ -800,13 +806,13 @@ partial class Program
         return 0;
     }
 
-    static int RunLocalize(string rootFolder)
+    static int RunLocalize(string rootFolder, bool keyPrepend = true)
     {
         if (GetFilesByPattern(rootFolder, @"^LocalText\.json$").FirstOrDefault() is { } path)
         {
             try
             {
-                if (PopulateLocalText(path, jsonPrettySerializerOptions))
+                if (PopulateLocalText(path, keyPrepend, jsonPrettySerializerOptions))
                 {
                     Console.Error.WriteLine("Updated \"LocalText.json\".");
                 }
@@ -837,7 +843,10 @@ partial class Program
     /// - Prepends "{SoleID}." to value of `.key` if it isn't already. <br/>
     /// - Creates `.id` if not present in the list entry, otherwise if `.id` is 0, update it with a random id. <br/>
     /// </summary>
-    static bool PopulateLocalText(string path, JsonSerializerOptions? options = null)
+    static bool PopulateLocalText(
+        string path,
+        bool keyPrepend = true,
+        JsonSerializerOptions? options = null)
     {
         if (Path.GetFileName(path) != "LocalText.json")
             throw new ArgumentException($"Path doesn't point to a LocalText.json: \"{path}\"");
@@ -876,7 +885,7 @@ partial class Program
             if (localText["key"] is { } keyNode)
             {
                 var keyValue = keyNode.GetValue<string>();
-                if (!keyValue.StartsWith(keyPrefix))
+                if (keyPrepend && !keyValue.StartsWith(keyPrefix))
                 {
                     var newKeyValue = keyPrefix + keyValue;
                     Console.Error.WriteLine($"Updating .key: \"{keyValue}\" -> \"{newKeyValue}\"");
