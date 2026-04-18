@@ -1227,6 +1227,7 @@ partial class Program
         }
         Directory.CreateDirectory(dllOutDir);
 
+        // Mutating hierarchy here is fine, it's not recursive
         foreach (var file in Directory.EnumerateFiles(releaseDir))
         {
             var ext = Path.GetExtension(file);
@@ -1252,12 +1253,18 @@ partial class Program
         if (PathUtils.Equals(from, to))
             return;
 
+        var toFull = Path.GetFullPath(to);
+        var walkList = new IgnoreWalk([from], Overrides: ignoreGlobs, UseIgnoreFiles: !noIgnoreFiles)
+            .Enumerate()
+            .Where(p => !Path.GetFullPath(p).StartsWith(toFull))
+            .ToList();
+
+        // Create target directory after walk snapshot to prevent recursively visiting target directory for copying as
+        // well, since we don't have a way to exclude a path from visiting
+        // TODO: Will need to have our own recurse logic for that instead of EnumerationOptions.RecurseSubdirectories
         Directory.CreateDirectory(to);
 
-        foreach (var srcPath in new IgnoreWalk(
-            [from],
-            Overrides: ignoreGlobs,
-            UseIgnoreFiles: !noIgnoreFiles).Enumerate())
+        foreach (var srcPath in walkList)
         {
             var relPath = Path.GetRelativePath(from, srcPath);
             var relParts = PathUtils.Split(relPath);

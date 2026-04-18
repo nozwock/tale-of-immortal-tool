@@ -111,6 +111,8 @@ public record class IgnoreWalk(
             MatchCasing = CaseInsensitive ? MatchCasing.CaseInsensitive : MatchCasing.CaseSensitive,
         };
 
+        // FIXME: Falls flat if the consumer is modifying the directory while iterating, e.g. copying files from root to
+        // a subdirectory
         foreach (var entry in Directory.EnumerateFileSystemEntries(current, "*", options))
         {
             var attr = File.GetAttributes(entry);
