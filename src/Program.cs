@@ -287,6 +287,29 @@ partial class Program
             Subcommands = { cmdSaveUnpack, cmdSavePack },
         };
 
+        var optLocalizeCwd = new Option<DirectoryInfo>("--cwd")
+        {
+            Description = "Specify working directory.",
+            Aliases = { "-C" },
+        }.AcceptLegalFilePathsOnly();
+        var cmdLocalize = new Command(
+            "localize",
+            """
+            Helps writing "LocalText.json".
+            - Prepends "{SoleID}." to `.key` in entries if it isn't already, for key uniqueness.
+            - Creates `.id` if not present in an entry, otherwise update it with a random id if `.id` is 0.
+            """
+            + "\n\nThe command will look for \"LocalText.json\" in the current working directory and "
+            + "\"ProjectData.cache\" for SoleID in any of its parent directory."
+        )
+        {
+            optLocalizeCwd,
+        };
+        cmdLocalize.SetAction(parsed =>
+            RunLocalize(
+                parsed.GetValue(optLocalizeCwd)?.FullName
+                ?? Directory.GetCurrentDirectory()));
+
         var cmdRoot = new RootCommand("Modding tooling for Tale of Immortal")
         {
             Subcommands =
@@ -297,6 +320,7 @@ partial class Program
                 cmdDecrypt,
                 cmdMod,
                 cmdSave,
+                cmdLocalize,
             }
         };
 
@@ -774,6 +798,122 @@ partial class Program
         Console.Out.WriteLine(outRoot);
 
         return 0;
+    }
+
+    static int RunLocalize(string rootFolder)
+    {
+        if (GetFilesByPattern(rootFolder, @"^LocalText\.json$").FirstOrDefault() is { } path)
+        {
+            try
+            {
+                if (PopulateLocalText(path, jsonPrettySerializerOptions))
+                {
+                    Console.Error.WriteLine("Updated \"LocalText.json\".");
+                }
+                else
+                {
+                    Console.Error.WriteLine("Nothing to update in \"LocalText.json\".");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex);
+                return 1;
+            }
+        }
+        else
+        {
+            Console.Error.WriteLine($"Failed to find \"LocalText.json\": \"{rootFolder}\"");
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Comments are not preserved. <br/><br/>
+    ///
+    /// Does the following: <br/>
+    /// - Prepends "{SoleID}." to value of `.key` if it isn't already. <br/>
+    /// - Creates `.id` if not present in the list entry, otherwise if `.id` is 0, update it with a random id. <br/>
+    /// </summary>
+    static bool PopulateLocalText(string path, JsonSerializerOptions? options = null)
+    {
+        if (Path.GetFileName(path) != "LocalText.json")
+            throw new ArgumentException($"Path doesn't point to a LocalText.json: \"{path}\"");
+
+        ModInfo? modInfo = null;
+        var parent = Path.GetDirectoryName(path);
+        while (parent != null)
+        {
+            if (File.Exists(Path.Join(parent, ModInfo.projectDataFileName)))
+            {
+                modInfo = new ModInfo(parent, ModInfo.InfoCollectOption.ProjectData);
+                break;
+            }
+            parent = Path.GetDirectoryName(parent);
+        }
+        if (modInfo is null)
+        {
+            throw new InvalidOperationException(
+                $"Couldn't find {ModInfo.projectDataFileName} in parent directories for soleID: \"{path}\"");
+        }
+
+        var dom = JsonNode.Parse(JsonDocument.Parse(File.ReadAllText(path), new()
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip,
+        }).RootElement.GetRawText())!;
+
+        var localTexts = dom.AsArray();
+        var keyPrefix = $"{modInfo.ProjectData.SoleID}.";
+        var dirty = false;
+        foreach (var (localText, i) in localTexts.Select((it, i) => (it, i)))
+        {
+            if (localText is not JsonObject)
+                continue;
+
+            if (localText["key"] is { } keyNode)
+            {
+                var keyValue = keyNode.GetValue<string>();
+                if (!keyValue.StartsWith(keyPrefix))
+                {
+                    var newKeyValue = keyPrefix + keyValue;
+                    Console.Error.WriteLine($"Updating .key: \"{keyValue}\" -> \"{newKeyValue}\"");
+                    localText["key"] = newKeyValue;
+                    dirty = true;
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $".key is not defined for object at index {i} in LocalText.json: \"{path}\"");
+            }
+
+            if (localText["id"] is { } idNode)
+            {
+                if (idNode == null || idNode.GetValue<int>() == 0)
+                {
+                    var newIdValue = ModTool.RandomId();
+                    Console.Error.WriteLine(
+                        $"Updating .id: \"{idNode!.GetValue<int>()}\" -> \"{newIdValue}\" "
+                        + $"for .key: \"{keyNode.GetValue<string>()}\"");
+                    localText["id"] = newIdValue;
+                    dirty = true;
+                }
+            }
+            else
+            {
+                var newIdValue = ModTool.RandomId();
+                Console.Error.WriteLine($"Adding .id: \"{newIdValue}\" for .key: \"{keyNode.GetValue<string>()}\"");
+                localText["id"] = newIdValue;
+                dirty = true;
+            }
+        }
+
+        File.WriteAllText(path, dom.ToJsonString(options));
+
+        return dirty;
     }
 
     static int RunNewModProject(string name)
